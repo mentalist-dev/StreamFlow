@@ -1,0 +1,23 @@
+root = true
+
+[*]
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+[*.{cs,resx}]
+indent_style = spaces
+indent_size = 4
+
+[*.ps1]
+indent_style = spaces
+indent_size = 4
+
+[*.{proj,targets,csproj,props}]
+indent_style = spaces
+indent_size = 2
+
+[*.{config,xml,xaml}]
+indent_style = spaces
+indent_size = 2
