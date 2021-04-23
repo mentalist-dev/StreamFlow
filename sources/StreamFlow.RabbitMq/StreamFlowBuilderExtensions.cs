@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StreamFlow.RabbitMq.Server;
@@ -12,6 +12,7 @@ namespace StreamFlow.RabbitMq
             builder.Services.TryAddSingleton<IRabbitMqConventions, RabbitMqConventions>();
             builder.Services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
             builder.Services.AddScoped<IPublisher, RabbitMqPublisher>();
+            builder.Services.AddScoped<IRabbitMqPublisherPipe, RabbitMqPublisherPipe>();
 
             var rabbitMq = new StreamFlowRabbitMq(builder.Services);
             configure(rabbitMq);
@@ -24,7 +25,8 @@ namespace StreamFlow.RabbitMq
     {
         IStreamFlowRabbitMq ConnectTo(string hostName, string userName, string password, string virtualHost = "/");
         IStreamFlowRabbitMq ConsumeInHostedService();
-        IStreamFlowRabbitMq WithScopeFactory<T>() where T : class, IRabbitMqScopeFactory;
+        IStreamFlowRabbitMq WithConsumerPipe<T>() where T : class, IRabbitMqConsumerPipe;
+        IStreamFlowRabbitMq WithPublisherPipe<T>() where T : class, IRabbitMqPublisherPipe;
     }
 
     internal class StreamFlowRabbitMq: IStreamFlowRabbitMq
@@ -46,17 +48,24 @@ namespace StreamFlow.RabbitMq
         {
             _services.AddSingleton<IRabbitMqServer, RabbitMqServer>();
             _services.AddTransient<IRabbitMqErrorHandler, RabbitMqErrorHandler>();
-            _services.TryAddScoped<IRabbitMqScopeFactory, RabbitMqScopeFactory>();
+            _services.TryAddScoped<IRabbitMqConsumerPipe, RabbitMqConsumerPipe>();
 
             _services.AddHostedService<RabbitMqHostedService>();
 
             return this;
         }
 
-        public IStreamFlowRabbitMq WithScopeFactory<T>() where T: class, IRabbitMqScopeFactory
+        public IStreamFlowRabbitMq WithConsumerPipe<T>() where T: class, IRabbitMqConsumerPipe
         {
-            _services.RemoveAll<IRabbitMqScopeFactory>();
-            _services.AddScoped<IRabbitMqScopeFactory, T>();
+            _services.RemoveAll<IRabbitMqConsumerPipe>();
+            _services.AddScoped<IRabbitMqConsumerPipe, T>();
+            return this;
+        }
+
+        public IStreamFlowRabbitMq WithPublisherPipe<T>() where T: class, IRabbitMqPublisherPipe
+        {
+            _services.RemoveAll<IRabbitMqPublisherPipe>();
+            _services.AddScoped<IRabbitMqPublisherPipe, T>();
             return this;
         }
     }

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
@@ -11,7 +11,7 @@
     <PackageProjectUrl>https://github.com/mentalist-dev/StreamFlow</PackageProjectUrl>
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
     <PackageTags>Messaging</PackageTags>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <PackageReleaseNotes></PackageReleaseNotes>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>

@@ -1,4 +1,5 @@
 using System;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
 using StreamFlow.RabbitMq;
 using StreamFlow.RabbitMq.Server;
 
@@ -31,7 +33,8 @@ namespace StreamFlow.Tests.AspNetCore
                     .RabbitMqTransport(mq => mq
                         .ConnectTo("localhost", "guest", "guest")
                         .ConsumeInHostedService()
-                        .WithScopeFactory<CustomScopeFactory>()
+                        .WithConsumerPipe<CustomConsumerPipe>()
+                        .WithPublisherPipe<CustomPublisherPipe>()
                     )
                     .Consumes<PingRequest, PingRequestConsumer>(new ConsumerOptions {ConsumerCount = 5, ConsumerGroup = "gr1"})
                     .Consumes<PingRequest, PingRequestConsumer>(new ConsumerOptions {ConsumerCount = 5, ConsumerGroup = "gr2"})
@@ -82,19 +85,29 @@ namespace StreamFlow.Tests.AspNetCore
         }
     }
 
-    public class CustomScopeFactory : RabbitMqScopeFactory
+    public class CustomConsumerPipe : RabbitMqConsumerPipe
     {
-        private readonly ILogger<CustomScopeFactory> _logger;
+        private readonly ILogger<CustomConsumerPipe> _logger;
 
-        public CustomScopeFactory(ILogger<CustomScopeFactory> logger)
+        public CustomConsumerPipe(ILogger<CustomConsumerPipe> logger)
         {
             _logger = logger;
         }
 
-        public override IDisposable Create(RabbitMqExecutionContext context)
+        public override Task<IDisposable> Create(RabbitMqExecutionContext context)
         {
-            _logger.LogInformation("Creating custom RabbitMq scope");
-            return new RabbitMqScope();
+            _logger.LogInformation($"AppId: {context.Event.BasicProperties?.AppId}");
+            IDisposable scope = new RabbitMqScope();
+            return Task.FromResult(scope);
+        }
+    }
+
+    public class CustomPublisherPipe : IRabbitMqPublisherPipe
+    {
+        public Task Execute<T>(IBasicProperties properties)
+        {
+            properties.AppId = ".NET Core";
+            return Task.CompletedTask;
         }
     }
 }

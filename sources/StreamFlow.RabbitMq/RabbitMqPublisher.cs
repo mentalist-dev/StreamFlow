@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -9,14 +9,16 @@ namespace StreamFlow.RabbitMq
     public class RabbitMqPublisher : IPublisher, IDisposable
     {
         private readonly IRabbitMqConventions _conventions;
+        private readonly IRabbitMqPublisherPipe _publisherPipe;
         private readonly IMessageSerializer _messageSerializer;
         private readonly ILogger<RabbitMqPublisher> _logger;
         private readonly Lazy<RabbitMqChannel> _model;
 
-        public RabbitMqPublisher(IRabbitMqConnection connection, IRabbitMqConventions conventions, IMessageSerializer messageSerializer, ILogger<RabbitMqPublisher> logger)
+        public RabbitMqPublisher(IRabbitMqConnection connection, IRabbitMqConventions conventions, IRabbitMqPublisherPipe publisherPipe, IMessageSerializer messageSerializer, ILogger<RabbitMqPublisher> logger)
         {
             if (connection == null) throw new ArgumentNullException(nameof(connection));
             _conventions = conventions;
+            _publisherPipe = publisherPipe;
             _messageSerializer = messageSerializer;
             _logger = logger;
             _model = new Lazy<RabbitMqChannel>(() => new RabbitMqChannel(connection.Create()));
@@ -59,6 +61,8 @@ namespace StreamFlow.RabbitMq
             properties.CorrelationId = correlationId;
             properties.ContentType = _messageSerializer.GetContentType<T>();
             properties.Headers["SF:PublishTime"] = DateTime.UtcNow.ToString("O");
+
+            _publisherPipe.Execute<T>(properties);
 
             var body = _messageSerializer.Serialize(message);
 

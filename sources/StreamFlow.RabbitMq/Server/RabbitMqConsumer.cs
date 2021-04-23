@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -65,7 +65,7 @@ namespace StreamFlow.RabbitMq.Server
             {
                 var context = new RabbitMqExecutionContext(@event);
 
-                var scopeFactory = serviceProvider.GetRequiredService<IRabbitMqScopeFactory>();
+                var scopeFactory = serviceProvider.GetRequiredService<IRabbitMqConsumerPipe>();
                 using var rabbitMqScope = scopeFactory.Create(context);
 
                 await registration.Execute(serviceProvider, context);
