@@ -83,7 +83,7 @@ namespace StreamFlow.Tests.AspNetCore
 
     public class PingRequestConsumer : IConsumer<PingRequest>
     {
-        public Task Handle(IConsumerMessage<PingRequest> message)
+        public Task Handle(IMessage<PingRequest> message)
         {
             Console.WriteLine(message.Body.Timestamp);
             throw new Exception("Unable to handle!");

@@ -36,7 +36,7 @@ namespace StreamFlow.Server
             if (messageContent == null)
                 throw new Exception("Unable to deserialize");
 
-            var message = new ConsumerMessage<TRequest>(messageContent);
+            var message = new Message<TRequest>(messageContent, context);
 
             var consumer = provider.GetRequiredService<TConsumer>();
             await consumer.Handle(message);

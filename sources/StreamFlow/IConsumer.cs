@@ -4,21 +4,24 @@ namespace StreamFlow
 {
     public interface IConsumer<in TRequest>
     {
-        Task Handle(IConsumerMessage<TRequest> message);
+        Task Handle(IMessage<TRequest> message);
     }
 
-    public interface IConsumerMessage<out TRequest>
+    public interface IMessage<out TRequest>
     {
         TRequest Body { get; }
+        IMessageContext Context { get; }
     }
 
-    public class ConsumerMessage<TRequest> : IConsumerMessage<TRequest>
+    public class Message<TRequest> : IMessage<TRequest>
     {
-        public ConsumerMessage(TRequest body)
+        public Message(TRequest body, IMessageContext context)
         {
             Body = body;
+            Context = context;
         }
 
         public TRequest Body { get; }
+        public IMessageContext Context { get; }
     }
 }
