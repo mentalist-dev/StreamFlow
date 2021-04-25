@@ -21,8 +21,29 @@ All names in RabbitMQ server can be defined by implementing IRabbitMqConventions
 However default behavior works like this:
 
 - exchange name is created using request class name
-- queue name is created using <request class name>:<request handler name>[:<consumer group name>]
-- error queue name is created using <request class name>:<request handler name>[:<consumer group name>]:Error
+- queue name is created using <request class name>:<request handler name>[:<service id>][:<consumer group name>]
+- error queue name is created using <request class name>:<request handler name>[:<service id>][:<consumer group name>]:Error
+
+```
+A consumer group is a group of consumers that share the same group id. 
+When a topic is consumed by consumers in the same group, every record 
+will be delivered to only one consumer.
+If all the consumer instances have the same consumer group, then the 
+records will effectively be load-balanced over the consumer instances.
+```
+
+```
+Service id identifies service implementation. As for example if we have 
+multiple services like customers and orders - they will have different 
+service id's. Most simple case here would be to use a short memorable
+identifier like: "customers", "orders". 
+
+The purpose of such id is to distinguish message handlers which can have
+exactly the same name and can handle exactly the same message. Since these
+are in different services - load balancing scenario is not acceptable in this case.
+
+It can be also treated as a consumer group but in this case it applies to whole service.
+```
 
 ## Component Lifetimes
 
@@ -119,14 +140,6 @@ services.AddStreamFlow(transport =>
 
 The code above registers stream flow classes, configured RabbitMQ connection and instructs to start ASP.NET Core hosted service which starts configured consumers.
 It configures 2 consumer groupds launching 5 instances for each group.
-
-```
-A consumer group is a group of consumers that share the same group id. 
-When a topic is consumed by consumers in the same group, every record 
-will be delivered to only one consumer.
-If all the consumer instances have the same consumer group, then the 
-records will effectively be load-balanced over the consumer instances.
-```
 
 ConfigureConsumerPipe and ConfigurePublisherPipe registers middleware-like actions which are executed when message is received or when published respectively.
 Code of these middlewares:

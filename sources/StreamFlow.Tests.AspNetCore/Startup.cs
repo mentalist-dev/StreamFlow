@@ -24,7 +24,9 @@ namespace StreamFlow.Tests.AspNetCore
         {
             services.AddControllersWithViews();
 
-            services.AddStreamFlow(transport =>
+            var streamFlowOptions = new StreamFlowOptions {ServiceId = "sf-tests"};
+
+            services.AddStreamFlow(streamFlowOptions, transport =>
             {
                 transport
                     .UsingRabbitMq(mq => mq
@@ -38,6 +40,7 @@ namespace StreamFlow.Tests.AspNetCore
                         .Add<PingRequest, PingRequestConsumer>(options => options
                             .ConsumerCount(5)
                             .ConsumerGroup("gr2"))
+                        .Add<PingRequestConsumer>()
                     )
                     .ConfigureConsumerPipe(builder => builder
                         .Use<LogAppIdMiddleware>()

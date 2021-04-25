@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -35,7 +35,7 @@ namespace StreamFlow.RabbitMq
 
         protected IModel Channel => _model.Value.Channel;
 
-        public async Task PublishAsync<T>(T message, PublishOptions? options = null) where T: class
+        public async Task PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T: class
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
 
@@ -67,12 +67,12 @@ namespace StreamFlow.RabbitMq
 
             await _pipe.ExecuteAsync(_services, context, messageContext =>
             {
-                PublishAsync(messageContext, isMandatory);
+                Publish(messageContext, isMandatory);
                 return Task.CompletedTask;
             });
         }
 
-        private void PublishAsync(IMessageContext message, bool isMandatory)
+        private void Publish(IMessageContext message, bool isMandatory)
         {
             var properties = Channel.CreateBasicProperties();
 

@@ -1,11 +1,12 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StreamFlow
 {
     public interface IPublisher
     {
-        Task PublishAsync<T>(T message, PublishOptions? options = null) where T : class;
+        Task PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T : class;
     }
 
     public class PublishOptions

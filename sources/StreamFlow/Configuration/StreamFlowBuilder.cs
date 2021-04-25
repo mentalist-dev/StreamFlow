@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using StreamFlow.Pipes;
 using StreamFlow.Server;
 
@@ -17,6 +19,9 @@ namespace StreamFlow.Configuration
     {
         IStreamFlowConsumer Add<TRequest, TConsumer>(Action<IConsumerOptionsBuilder>? consumer = null)
             where TConsumer : class, IConsumer<TRequest>;
+
+        IStreamFlowConsumer Add<TConsumer>(Action<IConsumerOptionsBuilder>? consumer = null)
+            where TConsumer : class;
     }
 
     public class StreamFlowBuilder : IStreamFlowTransport, IStreamFlowConsumer
@@ -65,7 +70,7 @@ namespace StreamFlow.Configuration
 
         IStreamFlowConsumer IStreamFlowConsumer.Add<TRequest, TConsumer>(Action<IConsumerOptionsBuilder>? consumer)
         {
-            _services.AddTransient<TConsumer>();
+            _services.TryAddTransient<TConsumer>();
 
             var consumerOptions = new ConsumerOptions();
             consumer?.Invoke(consumerOptions);
@@ -73,6 +78,29 @@ namespace StreamFlow.Configuration
             var registration = new ConsumerRegistration<TRequest, TConsumer>(consumerOptions);
 
             _registrations.Add(registration);
+
+            return this;
+        }
+
+        IStreamFlowConsumer IStreamFlowConsumer.Add<TConsumer>(Action<IConsumerOptionsBuilder>? consumer)
+        {
+            _services.TryAddTransient<TConsumer>();
+
+            var interfaces = typeof(TConsumer).GetInterfaces();
+            foreach (var @interface in interfaces)
+            {
+                if (@interface.IsGenericType && @interface.GetGenericTypeDefinition() == typeof(IConsumer<>))
+                {
+                    var consumerOptions = new ConsumerOptions();
+                    consumer?.Invoke(consumerOptions);
+
+                    var arguments = @interface.GetGenericArguments();
+
+                    var registration = new GenericConsumerRegistration<TConsumer>(arguments.First(), consumerOptions);
+
+                    _registrations.Add(registration);
+                }
+            }
 
             return this;
         }
