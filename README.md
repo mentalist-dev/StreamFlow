@@ -24,6 +24,29 @@ However default behavior works like this:
 - queue name is created using <request class name>:<request handler name>[:<consumer group name>]
 - error queue name is created using <request class name>:<request handler name>[:<consumer group name>]:Error
 
+## Component Lifetimes
+
+### Connection
+
+Connection object is registered as singleton. It means that single service will have only one connection to RabbitMQ server.
+
+### IPublisher
+
+Uses scoped life time. Channel is opened one per scope. It means that for each requests where publisher is used - channel will be opened and closed.
+If you want to achieve higher publishing performance - need to ensure that IPublisher instance is reused.
+
+### Middleware
+
+Each middleware is added as transient. Every middleware will be created on each received or published message.
+
+### Consumers
+
+Every consumer is singleton. However for each received message own scope is created and disposed at the end of processing.
+
+### Handlers
+
+Handlers are registered as scoped instances.
+
 ## Super simple to use
 
 Define a message:
