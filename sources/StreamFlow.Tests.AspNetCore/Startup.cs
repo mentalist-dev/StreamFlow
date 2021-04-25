@@ -107,6 +107,9 @@ namespace StreamFlow.Tests.AspNetCore
                 _logger.LogInformation("AppId: {AppId}", context.AppId);
             }
 
+            var value = context.GetHeader("not-existent", "not found");
+            _logger.LogInformation("not-existent header value: {HeaderValue}", value);
+
             return next(context);
         }
     }

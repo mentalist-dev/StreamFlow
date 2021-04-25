@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace StreamFlow
 {
     public interface IMessageContext
     {
+        CancellationToken CancellationToken { get; }
         IReadOnlyDictionary<string, object> Headers { get; }
         ReadOnlyMemory<byte> Content { get; }
         string? ContentEncoding { get; }
@@ -23,6 +25,8 @@ namespace StreamFlow
 
         IMessageContext SetHeader(string key, object value);
         IMessageContext RemoveHeader(string key);
+
+        T? GetHeader<T>(string key, T? defaultValue = default);
 
         IMessageContext WithContentEncoding(string? contentEncoding);
         IMessageContext WithContentType(string? contentType);
@@ -49,6 +53,7 @@ namespace StreamFlow
     {
         private readonly Dictionary<string, object> _headers = new();
 
+        public CancellationToken CancellationToken { get; }
         public IReadOnlyDictionary<string, object> Headers => _headers;
         public ReadOnlyMemory<byte> Content { get; }
         public string? ContentEncoding { get; private set; }
@@ -65,8 +70,9 @@ namespace StreamFlow
         public string? Type { get; private set; }
         public string? UserId { get; private set; }
 
-        protected MessageContext(ReadOnlyMemory<byte> content)
+        protected MessageContext(ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default)
         {
+            CancellationToken = cancellationToken;
             Content = content;
         }
 
@@ -85,6 +91,16 @@ namespace StreamFlow
                 _headers.Remove(key);
             }
             return this;
+        }
+
+        public T? GetHeader<T>(string key, T? defaultValue = default)
+        {
+            if (Headers.TryGetValue(key, out var value))
+            {
+                return (T) value;
+            }
+
+            return defaultValue;
         }
 
         public IMessageContext WithContentEncoding(string? contentEncoding)
