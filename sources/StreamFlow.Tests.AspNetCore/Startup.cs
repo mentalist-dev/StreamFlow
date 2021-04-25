@@ -1,5 +1,4 @@
 using System;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -7,9 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using RabbitMQ.Client;
 using StreamFlow.RabbitMq;
-using StreamFlow.RabbitMq.Server;
 
 namespace StreamFlow.Tests.AspNetCore
 {
@@ -27,18 +24,27 @@ namespace StreamFlow.Tests.AspNetCore
         {
             services.AddControllersWithViews();
 
-            services.AddStreamFlow(flow =>
+            services.AddStreamFlow(transport =>
             {
-                flow
-                    .RabbitMqTransport(mq => mq
-                        .ConnectTo("localhost", "guest", "guest")
-                        .ConsumeInHostedService()
-                        .WithConsumerPipe<CustomConsumerPipe>()
-                        .WithPublisherPipe<CustomPublisherPipe>()
+                transport
+                    .UsingRabbitMq(mq => mq
+                        .Connection("localhost", "guest", "guest")
+                        .StartConsumerHostedService()
                     )
-                    .Consumes<PingRequest, PingRequestConsumer>(new ConsumerOptions {ConsumerCount = 5, ConsumerGroup = "gr1"})
-                    .Consumes<PingRequest, PingRequestConsumer>(new ConsumerOptions {ConsumerCount = 5, ConsumerGroup = "gr2"})
-                    ;
+                    .Consumers(builder => builder
+                        .Add<PingRequest, PingRequestConsumer>(options => options
+                            .ConsumerCount(5)
+                            .ConsumerGroup("gr1"))
+                        .Add<PingRequest, PingRequestConsumer>(options => options
+                            .ConsumerCount(5)
+                            .ConsumerGroup("gr2"))
+                    )
+                    .ConfigureConsumerPipe(builder => builder
+                        .Use<LogAppIdMiddleware>()
+                    )
+                    .ConfigurePublisherPipe(builder => builder
+                        .Use(_ => new SetAppIdMiddleware("Published from StreamFlow.Tests.AspNetCore"))
+                    );
             });
         }
 
@@ -66,7 +72,7 @@ namespace StreamFlow.Tests.AspNetCore
                     pattern: "{controller=Home}/{action=Index}/{id?}");
             });
 
-            publisher.Publish(new PingRequest {Timestamp = DateTime.UtcNow});
+            Task.Factory.StartNew(() => publisher.PublishAsync(new PingRequest {Timestamp = DateTime.UtcNow}));
         }
     }
 
@@ -77,7 +83,7 @@ namespace StreamFlow.Tests.AspNetCore
 
     public class PingRequestConsumer : IConsumer<PingRequest>
     {
-        public Task Handle(IMessage<PingRequest> message)
+        public Task Handle(IConsumerMessage<PingRequest> message)
         {
             Console.WriteLine(message.Body.Timestamp);
             throw new Exception("Unable to handle!");
@@ -85,29 +91,39 @@ namespace StreamFlow.Tests.AspNetCore
         }
     }
 
-    public class CustomConsumerPipe : RabbitMqConsumerPipe
+    public class LogAppIdMiddleware : IStreamFlowMiddleware
     {
-        private readonly ILogger<CustomConsumerPipe> _logger;
+        private readonly ILogger<LogAppIdMiddleware> _logger;
 
-        public CustomConsumerPipe(ILogger<CustomConsumerPipe> logger)
+        public LogAppIdMiddleware(ILogger<LogAppIdMiddleware> logger)
         {
             _logger = logger;
         }
 
-        public override Task<IDisposable> Create(RabbitMqExecutionContext context)
+        public Task Invoke(IMessageContext context, Func<IMessageContext, Task> next)
         {
-            _logger.LogInformation($"AppId: {context.Event.BasicProperties?.AppId}");
-            IDisposable scope = new RabbitMqScope();
-            return Task.FromResult(scope);
+            if (!string.IsNullOrWhiteSpace(context.AppId))
+            {
+                _logger.LogInformation("AppId: {AppId}", context.AppId);
+            }
+
+            return next(context);
         }
     }
 
-    public class CustomPublisherPipe : IRabbitMqPublisherPipe
+    public class SetAppIdMiddleware : IStreamFlowMiddleware
     {
-        public Task Execute<T>(IBasicProperties properties)
+        private readonly string _appId;
+
+        public SetAppIdMiddleware(string appId)
         {
-            properties.AppId = ".NET Core";
-            return Task.CompletedTask;
+            _appId = appId;
+        }
+
+        public Task Invoke(IMessageContext context, Func<IMessageContext, Task> next)
+        {
+            context.WithAppId(_appId);
+            return next(context);
         }
     }
 }

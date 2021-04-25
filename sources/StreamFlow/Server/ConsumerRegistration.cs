@@ -1,24 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using StreamFlow.Configuration;
 
-namespace StreamFlow
+namespace StreamFlow.Server
 {
-    public interface IRegistration
+    public interface IConsumerRegistration
     {
         ConsumerOptions Options { get; }
 
         Type RequestType { get; }
         Type ConsumerType { get; }
 
-        Task Execute(IServiceProvider provider, IExecutionContext context);
+        Task ExecuteAsync(IServiceProvider provider, IMessageContext context);
     }
 
-    public class Registration<TRequest, TConsumer> : IRegistration
+    public class ConsumerRegistration<TRequest, TConsumer> : IConsumerRegistration
         where TConsumer : class, IConsumer<TRequest>
     {
-        public Registration(ConsumerOptions consumerOptions)
+        public ConsumerRegistration(ConsumerOptions consumerOptions)
         {
             Options = consumerOptions;
         }
@@ -28,26 +28,18 @@ namespace StreamFlow
         public Type RequestType => typeof(TRequest);
         public Type ConsumerType => typeof(TConsumer);
 
-        public async Task Execute(IServiceProvider provider, IExecutionContext context)
+        public async Task ExecuteAsync(IServiceProvider provider, IMessageContext context)
         {
             var formatter = provider.GetRequiredService<IMessageSerializer>();
-            
+
             var messageContent = formatter.Deserialize<TRequest>(context.Content);
             if (messageContent == null)
                 throw new Exception("Unable to deserialize");
 
-            var message = new Message<TRequest>(messageContent);
+            var message = new ConsumerMessage<TRequest>(messageContent);
 
             var consumer = provider.GetRequiredService<TConsumer>();
             await consumer.Handle(message);
         }
-    }
-
-    public interface IExecutionContext
-    {
-        public ReadOnlyMemory<byte> Content { get; }
-        public IDictionary<string, object> Headers { get; }
-        public string? CorrelationId { get; }
-        public string? RoutingKey { get; }
     }
 }

@@ -5,9 +5,11 @@ VisualStudioVersion = 16.0.31129.286
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamFlow", "StreamFlow\StreamFlow.csproj", "{0F353912-0855-4D93-8F9B-E9059F07CF29}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StreamFlow.RabbitMq", "StreamFlow.RabbitMq\StreamFlow.RabbitMq.csproj", "{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamFlow.RabbitMq", "StreamFlow.RabbitMq\StreamFlow.RabbitMq.csproj", "{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StreamFlow.Tests.AspNetCore", "StreamFlow.Tests.AspNetCore\StreamFlow.Tests.AspNetCore.csproj", "{DF28EFB5-0565-40E6-AA8D-85B75529F1FF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamFlow.Tests.AspNetCore", "StreamFlow.Tests.AspNetCore\StreamFlow.Tests.AspNetCore.csproj", "{DF28EFB5-0565-40E6-AA8D-85B75529F1FF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StreamFlow.Tests", "StreamFlow.Tests\StreamFlow.Tests.csproj", "{E40A501C-FDAC-4080-96F9-DB253EBB2F3A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,18 +17,22 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{0F353912-0855-4D93-8F9B-E9059F07CF29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0F353912-0855-4D93-8F9B-E9059F07CF29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F353912-0855-4D93-8F9B-E9059F07CF29}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{0F353912-0855-4D93-8F9B-E9059F07CF29}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{0F353912-0855-4D93-8F9B-E9059F07CF29}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0F353912-0855-4D93-8F9B-E9059F07CF29}.Release|Any CPU.Build.0 = Release|Any CPU
-		{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{06BE11F8-3060-4BBE-9371-A7CF528B5BC7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{DF28EFB5-0565-40E6-AA8D-85B75529F1FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{DF28EFB5-0565-40E6-AA8D-85B75529F1FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DF28EFB5-0565-40E6-AA8D-85B75529F1FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DF28EFB5-0565-40E6-AA8D-85B75529F1FF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E40A501C-FDAC-4080-96F9-DB253EBB2F3A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E40A501C-FDAC-4080-96F9-DB253EBB2F3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E40A501C-FDAC-4080-96F9-DB253EBB2F3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E40A501C-FDAC-4080-96F9-DB253EBB2F3A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

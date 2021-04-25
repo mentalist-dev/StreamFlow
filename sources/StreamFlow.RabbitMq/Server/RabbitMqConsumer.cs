@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using StreamFlow.Pipes;
+using StreamFlow.Server;
 
 namespace StreamFlow.RabbitMq.Server
 {
@@ -47,13 +49,13 @@ namespace StreamFlow.RabbitMq.Server
 
         public string? ConsumerTag { get; private set; }
 
-        public void Start(IRegistration registration)
+        public void Start(IConsumerRegistration consumerRegistration)
         {
-            _consumer.Received += (_, @event) => OnReceived(@event, registration);
+            _consumer.Received += (_, @event) => OnReceivedAsync(@event, consumerRegistration);
             ConsumerTag = _channel.BasicConsume(_info.Queue, _info.AutoAck, _consumer);
         }
 
-        private async Task OnReceived(BasicDeliverEventArgs @event, IRegistration registration)
+        private async Task OnReceivedAsync(BasicDeliverEventArgs @event, IConsumerRegistration consumerRegistration)
         {
             var correlationId = @event.BasicProperties?.CorrelationId ?? string.Empty;
             _logger.LogDebug("Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}.", _info, correlationId);
@@ -63,12 +65,10 @@ namespace StreamFlow.RabbitMq.Server
 
             try
             {
-                var context = new RabbitMqExecutionContext(@event);
+                var context = new RabbitMqConsumerMessageContext(@event);
 
-                var scopeFactory = serviceProvider.GetRequiredService<IRabbitMqConsumerPipe>();
-                using var rabbitMqScope = scopeFactory.Create(context);
-
-                await registration.Execute(serviceProvider, context);
+                var executor = serviceProvider.GetRequiredService<IStreamFlowConsumerPipe>();
+                await executor.ExecuteAsync(serviceProvider, context, ctx => consumerRegistration.ExecuteAsync(serviceProvider, ctx));
 
                 if (!_info.AutoAck)
                 {
@@ -80,7 +80,7 @@ namespace StreamFlow.RabbitMq.Server
                 _logger.LogError(e, "Message handling failed. Message info = {@MessageInfo}.", _info);
 
                 var errorHandler = CreateErrorHandler(serviceProvider, @event.DeliveryTag);
-                await errorHandler.Handle(_channel, e, registration, @event, _info.Queue);
+                await errorHandler.HandleAsync(_channel, e, consumerRegistration, @event, _info.Queue);
 
                 if (!_info.AutoAck)
                 {

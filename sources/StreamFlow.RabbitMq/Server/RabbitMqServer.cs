@@ -1,13 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using StreamFlow.Configuration;
+using StreamFlow.RabbitMq.Connection;
+using StreamFlow.Server;
 
 namespace StreamFlow.RabbitMq.Server
 {
     public interface IRabbitMqServer
     {
-        void Start(IRegistration registration);
+        void Start(IConsumerRegistration consumerRegistration);
         void Stop();
     }
 
@@ -28,17 +31,17 @@ namespace StreamFlow.RabbitMq.Server
             _logger = loggers.CreateLogger<RabbitMqConsumer>();
         }
 
-        public void Start(IRegistration registration)
+        public void Start(IConsumerRegistration consumerRegistration)
         {
-            var requestType = registration.RequestType;
-            var consumerType = registration.ConsumerType;
-            var consumerGroup = registration.Options.ConsumerGroup;
-            var autoAck = registration.Options.AutoAck;
+            var requestType = consumerRegistration.RequestType;
+            var consumerType = consumerRegistration.ConsumerType;
+            var consumerGroup = consumerRegistration.Options.ConsumerGroup;
+            var autoAck = consumerRegistration.Options.AutoAck;
 
             var connection = _connection.Value;
 
             var exchange = _conventions.GetExchangeName(requestType);
-            var queue = _conventions.GetQueueName(consumerType, consumerGroup);
+            var queue = _conventions.GetQueueName(requestType, consumerType, consumerGroup);
             var routingKey = "#";
 
             if (string.IsNullOrWhiteSpace(exchange))
@@ -47,9 +50,9 @@ namespace StreamFlow.RabbitMq.Server
             if (string.IsNullOrWhiteSpace(queue))
                 throw new Exception($"Unable to resolve queue name from consumer type [{consumerType}] with consumer group [{consumerGroup}]");
 
-            EnsureTopology(connection, registration.Options.Queue, exchange, queue, routingKey);
+            EnsureTopology(connection, consumerRegistration.Options.Queue, exchange, queue, routingKey);
 
-            var consumerCount = registration.Options.ConsumerCount;
+            var consumerCount = consumerRegistration.Options.ConsumerCount;
             if (consumerCount < 1)
             {
                 consumerCount = 1;
@@ -68,7 +71,7 @@ namespace StreamFlow.RabbitMq.Server
 
                 _consumers.Add(consumer);
 
-                consumer.Start(registration);
+                consumer.Start(consumerRegistration);
             }
         }
 

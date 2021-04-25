@@ -1,12 +1,12 @@
-﻿using System;
+using System;
 
 namespace StreamFlow.RabbitMq
 {
     public interface IRabbitMqConventions
     {
         string GetExchangeName(Type requestType);
-        string GetQueueName(Type consumerType, string? consumerGroup);
-        string GetErrorQueueName(Type consumerType, string? consumerGroup);
+        string GetQueueName(Type requestType, Type consumerType, string? consumerGroup);
+        string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup);
     }
 
     public class RabbitMqConventions: IRabbitMqConventions
@@ -16,9 +16,9 @@ namespace StreamFlow.RabbitMq
             return requestType.Name;
         }
 
-        public string GetQueueName(Type consumerType, string? consumerGroup)
+        public string GetQueueName(Type requestType, Type consumerType, string? consumerGroup)
         {
-            var queueName = consumerType.Name;
+            var queueName = $"{requestType.Name}:{consumerType.Name}";
 
             if (!string.IsNullOrWhiteSpace(consumerGroup))
             {
@@ -28,9 +28,9 @@ namespace StreamFlow.RabbitMq
             return queueName;
         }
 
-        public string GetErrorQueueName(Type consumerType, string? consumerGroup)
+        public string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup)
         {
-            var queueName = consumerType.Name;
+            var queueName = $"{requestType.Name}:{consumerType.Name}";
 
             if (!string.IsNullOrWhiteSpace(consumerGroup))
             {

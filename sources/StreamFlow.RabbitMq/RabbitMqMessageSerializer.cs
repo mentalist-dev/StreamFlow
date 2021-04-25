@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -6,27 +6,27 @@ namespace StreamFlow.RabbitMq
 {
     public class RabbitMqMessageSerializer: IMessageSerializer
     {
-        private readonly JsonSerializerOptions _jsonSerializerOptions;
+        private static readonly JsonSerializerOptions JsonSerializerOptions;
 
-        public RabbitMqMessageSerializer()
+        static RabbitMqMessageSerializer()
         {
-            _jsonSerializerOptions = new JsonSerializerOptions
+            JsonSerializerOptions = new JsonSerializerOptions
             {
                 IgnoreNullValues = true
             };
 
-            _jsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+            JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         }
 
         public ReadOnlyMemory<byte> Serialize<T>(T message)
         {
-            return JsonSerializer.SerializeToUtf8Bytes(message, _jsonSerializerOptions);
+            return JsonSerializer.SerializeToUtf8Bytes(message, JsonSerializerOptions);
         }
 
         public T? Deserialize<T>(ReadOnlyMemory<byte> body)
         {
             var bytes = body.ToArray();
-            return JsonSerializer.Deserialize<T>(bytes, _jsonSerializerOptions);
+            return JsonSerializer.Deserialize<T>(bytes, JsonSerializerOptions);
         }
 
         public string GetContentType<T>()

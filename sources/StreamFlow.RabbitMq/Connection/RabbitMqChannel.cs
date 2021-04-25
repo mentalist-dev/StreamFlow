@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using RabbitMQ.Client;
 
-namespace StreamFlow.RabbitMq
+namespace StreamFlow.RabbitMq.Connection
 {
     public class RabbitMqChannel: IDisposable
     {

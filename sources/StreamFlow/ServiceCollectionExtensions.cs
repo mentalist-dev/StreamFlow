@@ -1,18 +1,19 @@
-﻿using System;
-using Microsoft.Extensions.DependencyInjection;
+using System;
+using StreamFlow.Configuration;
 
-namespace StreamFlow
+// ReSharper disable once CheckNamespace
+namespace Microsoft.Extensions.DependencyInjection
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddStreamFlow(this IServiceCollection services, Action<IStreamFlow> build)
+        public static IServiceCollection AddStreamFlow(this IServiceCollection services, Action<IStreamFlowTransport> transport)
         {
             var registrations = new ConsumerRegistrations();
             services.AddSingleton<IConsumerRegistrations>(_ => registrations);
 
             var builder = new StreamFlowBuilder(services, registrations);
 
-            build(builder);
+            transport(builder);
 
             return services;
         }

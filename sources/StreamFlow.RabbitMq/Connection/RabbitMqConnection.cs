@@ -1,6 +1,6 @@
-﻿using RabbitMQ.Client;
+using RabbitMQ.Client;
 
-namespace StreamFlow.RabbitMq
+namespace StreamFlow.RabbitMq.Connection
 {
     public interface IRabbitMqConnection
     {

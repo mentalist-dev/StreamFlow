@@ -1,0 +1,168 @@
+using System;
+using System.Collections.Generic;
+
+namespace StreamFlow
+{
+    public interface IMessageContext
+    {
+        IReadOnlyDictionary<string, object> Headers { get; }
+        ReadOnlyMemory<byte> Content { get; }
+        string? ContentEncoding { get; }
+        string? ContentType { get; }
+        string? CorrelationId { get; }
+        string? RoutingKey { get; }
+        string? Exchange { get; }
+        string? ClusterId { get; }
+        string? AppId { get; }
+        string? MessageId { get; }
+        MessageDeliveryMode? DeliveryMode { get; }
+        byte? Priority { get; }
+        string? ReplyTo { get; }
+        string? Type { get; }
+        string? UserId { get; }
+
+        IMessageContext SetHeader(string key, object value);
+        IMessageContext RemoveHeader(string key);
+
+        IMessageContext WithContentEncoding(string? contentEncoding);
+        IMessageContext WithContentType(string? contentType);
+        IMessageContext WithCorrelationId(string? correlationId);
+        IMessageContext WithRoutingKey(string? routingKey);
+        IMessageContext WithExchange(string? exchange);
+        IMessageContext WithClusterId(string? clusterId);
+        IMessageContext WithAppId(string? appId);
+        IMessageContext WithMessageId(string? messageId);
+        IMessageContext WithDeliveryMode(MessageDeliveryMode? deliveryMode);
+        IMessageContext WithPriority(byte? priority);
+        IMessageContext WithReplyTo(string? replyTo);
+        IMessageContext WithType(string? type);
+        IMessageContext WithUserId(string? userId);
+    }
+
+    public enum MessageDeliveryMode
+    {
+        NonPersistent,
+        Persistent
+    }
+
+    public abstract class MessageContext : IMessageContext
+    {
+        private readonly Dictionary<string, object> _headers = new();
+
+        public IReadOnlyDictionary<string, object> Headers => _headers;
+        public ReadOnlyMemory<byte> Content { get; }
+        public string? ContentEncoding { get; private set; }
+        public string? ContentType { get; private set; }
+        public string? CorrelationId { get; private set; }
+        public string? RoutingKey { get; private set; }
+        public string? Exchange { get; private set; }
+        public string? ClusterId { get; private set; }
+        public string? AppId { get; private set; }
+        public string? MessageId { get; private set; }
+        public MessageDeliveryMode? DeliveryMode { get; private set; }
+        public byte? Priority { get; private set; }
+        public string? ReplyTo { get; private set; }
+        public string? Type { get; private set; }
+        public string? UserId { get; private set; }
+
+        protected MessageContext(ReadOnlyMemory<byte> content)
+        {
+            Content = content;
+        }
+
+        public IMessageContext SetHeader(string key, object value)
+        {
+            if (string.IsNullOrWhiteSpace(key)) throw new ArgumentNullException(nameof(key));
+            _headers[key] = value ?? throw new ArgumentNullException(nameof(value));
+            return this;
+        }
+
+        public IMessageContext RemoveHeader(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) throw new ArgumentNullException(nameof(key));
+            if (_headers.ContainsKey(key))
+            {
+                _headers.Remove(key);
+            }
+            return this;
+        }
+
+        public IMessageContext WithContentEncoding(string? contentEncoding)
+        {
+            ContentEncoding = contentEncoding;
+            return this;
+        }
+
+        public IMessageContext WithContentType(string? contentType)
+        {
+            ContentType = contentType;
+            return this;
+        }
+
+        public IMessageContext WithCorrelationId(string? correlationId)
+        {
+            CorrelationId = correlationId;
+            return this;
+        }
+
+        public IMessageContext WithRoutingKey(string? routingKey)
+        {
+            RoutingKey = routingKey;
+            return this;
+        }
+
+        public IMessageContext WithExchange(string? exchange)
+        {
+            Exchange = exchange;
+            return this;
+        }
+
+        public IMessageContext WithClusterId(string? clusterId)
+        {
+            ClusterId = clusterId;
+            return this;
+        }
+
+        public IMessageContext WithAppId(string? appId)
+        {
+            AppId = appId;
+            return this;
+        }
+
+        public IMessageContext WithMessageId(string? messageId)
+        {
+            MessageId = messageId;
+            return this;
+        }
+
+        public IMessageContext WithDeliveryMode(MessageDeliveryMode? deliveryMode)
+        {
+            DeliveryMode = deliveryMode;
+            return this;
+        }
+
+        public IMessageContext WithPriority(byte? priority)
+        {
+            Priority = priority;
+            return this;
+        }
+
+        public IMessageContext WithReplyTo(string? replyTo)
+        {
+            ReplyTo = replyTo;
+            return this;
+        }
+
+        public IMessageContext WithType(string? type)
+        {
+            Type = type;
+            return this;
+        }
+
+        public IMessageContext WithUserId(string? userId)
+        {
+            UserId = userId;
+            return this;
+        }
+    }
+}

@@ -1,18 +1,20 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using StreamFlow.Configuration;
+using StreamFlow.RabbitMq.Connection;
 using StreamFlow.RabbitMq.Server;
+using StreamFlow.RabbitMq.Server.Hosting;
 
 namespace StreamFlow.RabbitMq
 {
     public static class StreamFlowBuilderExtensions
     {
-        public static IStreamFlow RabbitMqTransport(this IStreamFlow builder, Action<IStreamFlowRabbitMq> configure)
+        public static IStreamFlowTransport UsingRabbitMq(this IStreamFlowTransport builder, Action<IStreamFlowRabbitMq> configure)
         {
             builder.Services.TryAddSingleton<IRabbitMqConventions, RabbitMqConventions>();
             builder.Services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
             builder.Services.AddScoped<IPublisher, RabbitMqPublisher>();
-            builder.Services.AddScoped<IRabbitMqPublisherPipe, RabbitMqPublisherPipe>();
 
             var rabbitMq = new StreamFlowRabbitMq(builder.Services);
             configure(rabbitMq);
@@ -23,10 +25,8 @@ namespace StreamFlow.RabbitMq
 
     public interface IStreamFlowRabbitMq
     {
-        IStreamFlowRabbitMq ConnectTo(string hostName, string userName, string password, string virtualHost = "/");
-        IStreamFlowRabbitMq ConsumeInHostedService();
-        IStreamFlowRabbitMq WithConsumerPipe<T>() where T : class, IRabbitMqConsumerPipe;
-        IStreamFlowRabbitMq WithPublisherPipe<T>() where T : class, IRabbitMqPublisherPipe;
+        IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/");
+        IStreamFlowRabbitMq StartConsumerHostedService();
     }
 
     internal class StreamFlowRabbitMq: IStreamFlowRabbitMq
@@ -38,34 +38,20 @@ namespace StreamFlow.RabbitMq
             _services = services;
         }
 
-        public IStreamFlowRabbitMq ConnectTo(string hostName, string userName, string password, string virtualHost = "/")
+        public IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/")
         {
             _services.AddSingleton<IRabbitMqConnection>(new RabbitMqConnection(hostName, userName, password, virtualHost));
+            _services.AddSingleton<IRabbitMqServer, RabbitMqServer>();
+            _services.AddSingleton<IRabbitMqServerController, RabbitMqServerController>();
+            _services.AddTransient<IRabbitMqErrorHandler, RabbitMqErrorHandler>();
+
             return this;
         }
 
-        public IStreamFlowRabbitMq ConsumeInHostedService()
+        public IStreamFlowRabbitMq StartConsumerHostedService()
         {
-            _services.AddSingleton<IRabbitMqServer, RabbitMqServer>();
-            _services.AddTransient<IRabbitMqErrorHandler, RabbitMqErrorHandler>();
-            _services.TryAddScoped<IRabbitMqConsumerPipe, RabbitMqConsumerPipe>();
-
             _services.AddHostedService<RabbitMqHostedService>();
 
-            return this;
-        }
-
-        public IStreamFlowRabbitMq WithConsumerPipe<T>() where T: class, IRabbitMqConsumerPipe
-        {
-            _services.RemoveAll<IRabbitMqConsumerPipe>();
-            _services.AddScoped<IRabbitMqConsumerPipe, T>();
-            return this;
-        }
-
-        public IStreamFlowRabbitMq WithPublisherPipe<T>() where T: class, IRabbitMqPublisherPipe
-        {
-            _services.RemoveAll<IRabbitMqPublisherPipe>();
-            _services.AddScoped<IRabbitMqPublisherPipe, T>();
             return this;
         }
     }

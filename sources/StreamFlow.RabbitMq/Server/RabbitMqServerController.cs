@@ -1,15 +1,21 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Hosting;
+using StreamFlow.Configuration;
 
 namespace StreamFlow.RabbitMq.Server
 {
-    public class RabbitMqHostedService: IHostedService
+    public interface IRabbitMqServerController
+    {
+        Task StartAsync(CancellationToken cancellationToken);
+        Task StopAsync(CancellationToken cancellationToken);
+    }
+
+    public class RabbitMqServerController: IRabbitMqServerController
     {
         private readonly IRabbitMqServer _server;
         private readonly IConsumerRegistrations _registrations;
 
-        public RabbitMqHostedService(IRabbitMqServer server, IConsumerRegistrations registrations)
+        public RabbitMqServerController(IRabbitMqServer server, IConsumerRegistrations registrations)
         {
             _server = server;
             _registrations = registrations;

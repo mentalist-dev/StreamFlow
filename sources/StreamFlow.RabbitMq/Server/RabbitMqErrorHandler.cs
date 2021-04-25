@@ -1,15 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using StreamFlow.Server;
 
 namespace StreamFlow.RabbitMq.Server
 {
     public interface IRabbitMqErrorHandler
     {
-        Task Handle(IModel channel, Exception exception, IRegistration registration, BasicDeliverEventArgs @event, string queue);
+        Task HandleAsync(IModel channel, Exception exception, IConsumerRegistration consumerRegistration, BasicDeliverEventArgs @event, string queue);
     }
 
     public class RabbitMqErrorHandler: IRabbitMqErrorHandler
@@ -23,9 +24,14 @@ namespace StreamFlow.RabbitMq.Server
             _logger = logger;
         }
 
-        public Task Handle(IModel channel, Exception exception, IRegistration registration, BasicDeliverEventArgs @event, string queue)
+        public Task HandleAsync(IModel channel, Exception exception, IConsumerRegistration consumerRegistration, BasicDeliverEventArgs @event, string queue)
         {
-            var errorQueueName = _conventions.GetErrorQueueName(registration.ConsumerType, registration.Options.ConsumerGroup);
+            var errorQueueName = _conventions.GetErrorQueueName(
+                consumerRegistration.RequestType,
+                consumerRegistration.ConsumerType,
+                consumerRegistration.Options.ConsumerGroup
+            );
+
             _logger.LogDebug("Moving message to error queue [{ErrorQueueName}].", errorQueueName);
 
             try
