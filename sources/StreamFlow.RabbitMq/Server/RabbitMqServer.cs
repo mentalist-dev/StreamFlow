@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 using StreamFlow.Configuration;
 using StreamFlow.RabbitMq.Connection;
 using StreamFlow.Server;
@@ -49,7 +50,7 @@ namespace StreamFlow.RabbitMq.Server
             if (string.IsNullOrWhiteSpace(queue))
                 throw new Exception($"Unable to resolve queue name from consumer type [{consumerType}] with consumer group [{consumerGroup}]");
 
-            EnsureTopology(connection, consumerRegistration.Options.Queue, exchange, queue, routingKey);
+            TryCreateTopology(connection, consumerRegistration.Options.Queue, exchange, queue, routingKey);
 
             var consumerCount = consumerRegistration.Options.ConsumerCount;
             if (consumerCount < 1)
@@ -62,9 +63,11 @@ namespace StreamFlow.RabbitMq.Server
                 var channel = connection.CreateModel();
 
                 var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey);
+                var consumerIndex = i + 1;
+
                 _logger.LogInformation(
                     "Creating consumer {ConsumerIndex}/{ConsumerCount} consumer. Consumer info: {@ConsumerInfo}.",
-                    i + 1, consumerCount, consumerInfo);
+                    consumerIndex, consumerCount, consumerInfo);
 
                 var consumer = new RabbitMqConsumer(_services, channel, consumerInfo, _logger);
 
@@ -95,23 +98,105 @@ namespace StreamFlow.RabbitMq.Server
             }
         }
 
-        private void EnsureTopology(IConnection connection, QueueOptions? queueOptions, string exchange, string queue, string routingKey)
+        private void TryCreateTopology(IConnection connection, QueueOptions? queueOptions, string exchange, string queue, string routingKey)
         {
             using var channel = connection.CreateModel();
 
+            TryCreateExchange(exchange, channel);
+
+            TryCreateQueue(queueOptions, queue, channel);
+
+            TryCreateQueueAndExchangeBinding(exchange, queue, routingKey, channel);
+        }
+
+        private void TryCreateExchange(string exchange, IModel? channel)
+        {
+            try
+            {
+                _logger.LogInformation("Declaring exchange: [{ExchangeName}].", exchange);
+                channel.ExchangeDeclare(exchange, ExchangeType.Topic);
+            }
+            catch (OperationInterruptedException e)
+            {
+                _logger.LogError(e, "Unable to declare exchange [{ExchangeName}]", exchange);
+
+                // 406: PRECONDITION_FAILED, exchange exists, but with different properties
+                if (e.ShutdownReason?.ReplyCode != 406)
+                {
+                    throw;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to declare exchange [{ExchangeName}]", exchange);
+                throw;
+            }
+        }
+
+        private void TryCreateQueue(QueueOptions? queueOptions, string queue, IModel channel)
+        {
             var durable = queueOptions?.Durable ?? true;
             var exclusive = queueOptions?.Exclusive ?? false;
             var autoDelete = queueOptions?.AutoDelete ?? false;
             var arguments = queueOptions?.Arguments;
 
-            _logger.LogInformation("Declaring exchange: [{ExchangeName}].", exchange);
-            channel.ExchangeDeclare(exchange, ExchangeType.Topic);
+            try
+            {
+                _logger.LogInformation(
+                    "Declaring queue: [{QueueName}]. Queue options = {@QueueOptions}.",
+                    queue, queueOptions);
 
-            _logger.LogInformation("Declaring queue: [{QueueName}]. Routing key = [{RoutingKey}]. Queue options = {@QueueOptions}.", queue, routingKey, queueOptions);
-            channel.QueueDeclare(queue, durable, exclusive, autoDelete, arguments);
+                channel.QueueDeclare(queue, durable, exclusive, autoDelete, arguments);
+            }
+            catch (OperationInterruptedException e)
+            {
+                _logger.LogError(e, "Unable to declare queue [{QueueName}]. Queue options = {@QueueOptions}.", queue,
+                    queueOptions);
 
-            _logger.LogInformation("Binding exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].", exchange, queue, routingKey);
-            channel.QueueBind(queue, exchange, routingKey);
+                // 406: PRECONDITION_FAILED, queue exists, but with different properties
+                if (e.ShutdownReason?.ReplyCode != 406)
+                {
+                    throw;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to declare queue [{QueueName}]. Queue options = {@QueueOptions}.", queue,
+                    queueOptions);
+                throw;
+            }
+        }
+
+        private void TryCreateQueueAndExchangeBinding(string exchange, string queue, string routingKey, IModel? channel)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Binding exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].", exchange,
+                    queue, routingKey);
+
+                channel.QueueBind(queue, exchange, routingKey);
+            }
+            catch (OperationInterruptedException e)
+            {
+                _logger.LogError(e,
+                    "Unable to bind exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].",
+                    exchange, queue, routingKey);
+
+                // 406: PRECONDITION_FAILED, binding exists, but with different properties
+                if (e.ShutdownReason?.ReplyCode != 406)
+                {
+                    throw;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Unable to bind exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].",
+                    exchange, queue, routingKey);
+
+                throw;
+            }
         }
     }
 }

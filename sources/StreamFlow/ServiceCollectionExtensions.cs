@@ -17,7 +17,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
             services.AddSingleton(options);
 
-            var builder = new StreamFlowBuilder(services, registrations);
+            var builder = new StreamFlowBuilder(services, registrations, options);
 
             transport(builder);
 

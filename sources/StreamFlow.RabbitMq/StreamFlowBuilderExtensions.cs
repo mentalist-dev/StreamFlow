@@ -16,7 +16,7 @@ namespace StreamFlow.RabbitMq
             builder.Services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
             builder.Services.AddScoped<IPublisher, RabbitMqPublisher>();
 
-            var rabbitMq = new StreamFlowRabbitMq(builder.Services);
+            var rabbitMq = new StreamFlowRabbitMq(builder.Services, builder.Options);
             configure(rabbitMq);
 
             return builder;
@@ -32,15 +32,17 @@ namespace StreamFlow.RabbitMq
     internal class StreamFlowRabbitMq: IStreamFlowRabbitMq
     {
         private readonly IServiceCollection _services;
+        private readonly StreamFlowOptions _options;
 
-        public StreamFlowRabbitMq(IServiceCollection services)
+        public StreamFlowRabbitMq(IServiceCollection services, StreamFlowOptions options)
         {
             _services = services;
+            _options = options;
         }
 
         public IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/")
         {
-            _services.AddSingleton<IRabbitMqConnection>(new RabbitMqConnection(hostName, userName, password, virtualHost));
+            _services.AddSingleton<IRabbitMqConnection>(new RabbitMqConnection(hostName, userName, password, virtualHost, _options.ServiceId));
             _services.AddSingleton<IRabbitMqServer, RabbitMqServer>();
             _services.AddSingleton<IRabbitMqServerController, RabbitMqServerController>();
             _services.AddTransient<IRabbitMqErrorHandler, RabbitMqErrorHandler>();
