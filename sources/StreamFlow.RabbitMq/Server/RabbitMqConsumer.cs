@@ -16,18 +16,16 @@ namespace StreamFlow.RabbitMq.Server
 
     public class RabbitMqConsumerInfo
     {
-        public RabbitMqConsumerInfo(string exchange, string queue, string routingKey, bool autoAck)
+        public RabbitMqConsumerInfo(string exchange, string queue, string routingKey)
         {
             Exchange = exchange;
             Queue = queue;
             RoutingKey = routingKey;
-            AutoAck = autoAck;
         }
 
         public string Exchange { get; init; }
         public string Queue { get; init; }
         public string RoutingKey { get; init; }
-        public bool AutoAck { get; init; }
     }
 
     public class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
@@ -48,82 +46,146 @@ namespace StreamFlow.RabbitMq.Server
         }
 
         public string? ConsumerTag { get; private set; }
+        public bool IsDisposed { get; private set; }
 
         public void Start(IConsumerRegistration consumerRegistration)
         {
             _consumer.Received += (_, @event) => OnReceivedAsync(@event, consumerRegistration);
-            ConsumerTag = _channel.BasicConsume(_info.Queue, _info.AutoAck, _consumer);
+            ConsumerTag = _channel.BasicConsume(_info.Queue, false, _consumer);
         }
 
-        private async Task OnReceivedAsync(BasicDeliverEventArgs @event, IConsumerRegistration consumerRegistration)
+        private async Task OnReceivedAsync(BasicDeliverEventArgs @event, IConsumerRegistration consumer)
         {
+            if (IsDisposed)
+                return;
+
             var correlationId = @event.BasicProperties?.CorrelationId ?? string.Empty;
             _logger.LogDebug("Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}.", _info, correlationId);
 
             using var scope = _services.CreateScope();
             var serviceProvider = scope.ServiceProvider;
 
+            bool? acknowledge = false;
             try
             {
                 var context = new RabbitMqConsumerMessageContext(@event);
 
+                // find handler and consume message
                 var executor = serviceProvider.GetRequiredService<IStreamFlowConsumerPipe>();
-                await executor.ExecuteAsync(serviceProvider, context, ctx => consumerRegistration.ExecuteAsync(serviceProvider, ctx));
+                await executor.ExecuteAsync(serviceProvider, context, ctx => consumer.ExecuteAsync(serviceProvider, ctx));
 
-                if (!_info.AutoAck)
-                {
-                    _channel.BasicAck(@event.DeliveryTag, false);
-                }
+                acknowledge = true;
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "Message handling failed. Message info = {@MessageInfo}.", _info);
-
-                var errorHandler = CreateErrorHandler(serviceProvider, @event.DeliveryTag);
-                await errorHandler.HandleAsync(_channel, e, consumerRegistration, @event, _info.Queue);
-
-                if (!_info.AutoAck)
+                acknowledge = await HandleError(serviceProvider, @event, consumer, e);
+            }
+            finally
+            {
+                if (acknowledge != null)
                 {
-                    _channel.BasicAck(@event.DeliveryTag, false);
-                }
-                else
-                {
-                    _channel.BasicNack(@event.DeliveryTag, false, true);
+                    if (acknowledge == true)
+                    {
+                        _channel.BasicAck(@event.DeliveryTag, false);
+                    }
+                    else
+                    {
+                        ReturnMessageBackToQueue(@event.DeliveryTag);
+                    }
                 }
             }
         }
 
-        private IRabbitMqErrorHandler CreateErrorHandler(IServiceProvider serviceProvider, ulong deliveryTag)
+        private async Task<bool?> HandleError(IServiceProvider serviceProvider, BasicDeliverEventArgs @event, IConsumerRegistration consumerRegistration, Exception exception)
         {
+            IRabbitMqErrorHandler? errorHandler;
             try
             {
-                var errorHandler = serviceProvider.GetRequiredService<IRabbitMqErrorHandler>();
-                return errorHandler;
+                errorHandler = serviceProvider.GetRequiredService<IRabbitMqErrorHandler>();
             }
-            catch (Exception e)
+            catch (Exception exc)
             {
-                _logger.LogError(e, "Unable to create error handler <IRabbitMqErrorHandler>. Cancelling subscription. Shutting down consumer.");
+                _logger.LogError(exc, "Unable to create error handler <IRabbitMqErrorHandler>. Cancelling subscription. Shutting down consumer.");
 
-                if (!string.IsNullOrWhiteSpace(ConsumerTag))
+                try
                 {
-                    _channel.BasicNack(deliveryTag, false, true);
-                    _channel.BasicCancel(ConsumerTag);
+                    ReturnMessageBackToQueue(@event.DeliveryTag);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Unable to send NACK to RabbitMQ server");
+                }
+                finally
+                {
+                    StopConsumer();
                 }
 
-                throw;
+                // response to RabbitMQ already handled
+                return null;
             }
+
+            try
+            {
+                await errorHandler.HandleAsync(_channel, exception, consumerRegistration, @event, _info.Queue);
+
+                // error successfully handled, acknowledge current message
+                return true;
+            }
+            catch (Exception exc)
+            {
+                _logger.LogError(exc, "Message error handling failed. Message info = {@MessageInfo}.", _info);
+
+                // error was not handled
+                return false;
+            }
+        }
+
+        private void ReturnMessageBackToQueue(ulong deliveryTag)
+        {
+            _channel.BasicNack(deliveryTag, false, true);
+        }
+
+        private void StopConsumer()
+        {
+            if (!string.IsNullOrWhiteSpace(ConsumerTag))
+            {
+                _logger.LogWarning("Cancelling RabbitMQ subscription");
+                try
+                {
+                    _channel.BasicCancel(ConsumerTag);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Unable to cancel RabbitMQ subscription");
+                }
+            }
+
+            ConsumerTag = null;
         }
 
         public void Dispose()
         {
+            if (IsDisposed)
+                return;
+
             _logger.LogDebug("Disposing consumer. Message info = {@MessageInfo}.", _info);
 
-            if (!string.IsNullOrWhiteSpace(ConsumerTag))
+            try
             {
-                _consumer.HandleBasicCancel(ConsumerTag);
+                StopConsumer();
+
+                if (_channel.IsOpen)
+                {
+                    _channel.Close();
+                }
+
+                _channel.Dispose();
             }
-            
-            _channel.Dispose();
+            finally
+            {
+                IsDisposed = true;
+            }
         }
     }
 }

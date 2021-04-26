@@ -5,16 +5,17 @@
     <Nullable>enable</Nullable>
 
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Authors>Mantas Audickas</Authors>
+    <Authors>mentalist.dev</Authors>
     <Company />
-    <Description>StreamFlow Messaging</Description>
+    <Title>Messaging Framework</Title>
+    <Description>StreamFlow Messaging Framework</Description>
     <PackageProjectUrl>https://github.com/mentalist-dev/StreamFlow</PackageProjectUrl>
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
-    <PackageTags>Messaging</PackageTags>
-    <Version>1.6.0</Version>
+    <PackageTags>Messaging Framework StreamFlow</PackageTags>
+    <Version>2.0.0</Version>
     <PackageReleaseNotes></PackageReleaseNotes>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>

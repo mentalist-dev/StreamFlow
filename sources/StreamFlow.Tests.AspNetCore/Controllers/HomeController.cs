@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using StreamFlow.Tests.AspNetCore.Models;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace StreamFlow.Tests.AspNetCore.Controllers
@@ -12,14 +10,17 @@ namespace StreamFlow.Tests.AspNetCore.Controllers
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
+        private readonly IPublisher _publisher;
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(ILogger<HomeController> logger, IPublisher publisher)
         {
             _logger = logger;
+            _publisher = publisher;
         }
 
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
+            await _publisher.PublishAsync(new PingRequest {Timestamp = DateTime.UtcNow});
             return View();
         }
 

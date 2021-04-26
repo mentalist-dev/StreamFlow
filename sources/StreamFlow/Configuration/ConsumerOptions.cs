@@ -6,7 +6,6 @@ namespace StreamFlow.Configuration
     {
         public string? ConsumerGroup { get; private set; }
         public int ConsumerCount { get; private set; } = 1;
-        public bool AutoAck { get; private set; } = true;
         public QueueOptions Queue { get; } = new();
 
         IConsumerOptionsBuilder IConsumerOptionsBuilder.ConsumerGroup(string consumerGroupName)
@@ -18,12 +17,6 @@ namespace StreamFlow.Configuration
         IConsumerOptionsBuilder IConsumerOptionsBuilder.ConsumerCount(int consumerCount)
         {
             ConsumerCount = consumerCount;
-            return this;
-        }
-
-        IConsumerOptionsBuilder IConsumerOptionsBuilder.AutoAcknowledge(bool autoAck)
-        {
-            AutoAck = autoAck;
             return this;
         }
 

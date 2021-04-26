@@ -36,7 +36,6 @@ namespace StreamFlow.RabbitMq.Server
             var requestType = consumerRegistration.RequestType;
             var consumerType = consumerRegistration.ConsumerType;
             var consumerGroup = consumerRegistration.Options.ConsumerGroup;
-            var autoAck = consumerRegistration.Options.AutoAck;
 
             var connection = _connection.Value;
 
@@ -62,7 +61,7 @@ namespace StreamFlow.RabbitMq.Server
             {
                 var channel = connection.CreateModel();
 
-                var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey, autoAck);
+                var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey);
                 _logger.LogInformation(
                     "Creating consumer {ConsumerIndex}/{ConsumerCount} consumer. Consumer info: {@ConsumerInfo}.",
                     i + 1, consumerCount, consumerInfo);
@@ -100,7 +99,7 @@ namespace StreamFlow.RabbitMq.Server
         {
             using var channel = connection.CreateModel();
 
-            var durable = queueOptions?.Durable ?? false;
+            var durable = queueOptions?.Durable ?? true;
             var exclusive = queueOptions?.Exclusive ?? false;
             var autoDelete = queueOptions?.AutoDelete ?? false;
             var arguments = queueOptions?.Arguments;
