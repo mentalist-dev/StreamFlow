@@ -23,10 +23,10 @@ namespace StreamFlow
         string? Type { get; }
         string? UserId { get; }
 
-        IMessageContext SetHeader(string key, object value);
+        IMessageContext SetHeader(string key, string value);
         IMessageContext RemoveHeader(string key);
 
-        T? GetHeader<T>(string key, T? defaultValue = default);
+        string? GetHeader(string key, string? defaultValue = null);
 
         IMessageContext WithContentEncoding(string? contentEncoding);
         IMessageContext WithContentType(string? contentType);
@@ -76,7 +76,7 @@ namespace StreamFlow
             Content = content;
         }
 
-        public IMessageContext SetHeader(string key, object value)
+        public IMessageContext SetHeader(string key, string value)
         {
             if (string.IsNullOrWhiteSpace(key)) throw new ArgumentNullException(nameof(key));
             _headers[key] = value ?? throw new ArgumentNullException(nameof(value));
@@ -93,11 +93,11 @@ namespace StreamFlow
             return this;
         }
 
-        public T? GetHeader<T>(string key, T? defaultValue = default)
+        public string? GetHeader(string key, string? defaultValue = null)
         {
             if (Headers.TryGetValue(key, out var value))
             {
-                return (T) value;
+                return value.ToString();
             }
 
             return defaultValue;

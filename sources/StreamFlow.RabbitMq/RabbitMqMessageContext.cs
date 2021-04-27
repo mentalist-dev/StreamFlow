@@ -45,7 +45,11 @@ namespace StreamFlow.RabbitMq
             {
                 foreach (var header in headers)
                 {
-                    message.SetHeader(header.Key, header.Value);
+                    var value = header.Value?.ToString();
+                    if (value == null)
+                        continue;
+
+                    message.SetHeader(header.Key, value);
                 }
             }
 
