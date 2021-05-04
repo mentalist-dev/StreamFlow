@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 
 namespace StreamFlow
@@ -23,10 +24,10 @@ namespace StreamFlow
         string? Type { get; }
         string? UserId { get; }
 
-        IMessageContext SetHeader(string key, string value);
+        IMessageContext SetHeader(string key, object value);
         IMessageContext RemoveHeader(string key);
 
-        string? GetHeader(string key, string? defaultValue = null);
+        T? GetHeader<T>(string key, T? defaultValue);
 
         IMessageContext WithContentEncoding(string? contentEncoding);
         IMessageContext WithContentType(string? contentType);
@@ -76,7 +77,7 @@ namespace StreamFlow
             Content = content;
         }
 
-        public IMessageContext SetHeader(string key, string value)
+        public IMessageContext SetHeader(string key, object value)
         {
             if (string.IsNullOrWhiteSpace(key)) throw new ArgumentNullException(nameof(key));
             _headers[key] = value ?? throw new ArgumentNullException(nameof(value));
@@ -93,11 +94,36 @@ namespace StreamFlow
             return this;
         }
 
-        public string? GetHeader(string key, string? defaultValue = null)
+        public T? GetHeader<T>(string key, T? defaultValue)
         {
             if (Headers.TryGetValue(key, out var value))
             {
-                return value.ToString();
+                if (value.GetType() == typeof(T))
+                {
+                    return (T) value;
+                }
+
+                if (typeof(T) == typeof(string))
+                {
+                    // https://github.com/rabbitmq/rabbitmq-dotnet-client/issues/415
+
+                    object stringValue = value.GetType() == typeof(byte[])
+                        ? Encoding.UTF8.GetString((byte[]) value)
+                        : value.ToString()!;
+
+                    return (T) stringValue;
+                }
+
+                if (typeof(T) == typeof(Guid))
+                {
+                    string guidValue = value.GetType() == typeof(byte[])
+                        ? Encoding.UTF8.GetString((byte[])value)
+                        : value.ToString()!;
+
+                    return (T) (object) Guid.Parse(guidValue);
+                }
+
+                return (T)Convert.ChangeType(value, typeof(T));
             }
 
             return defaultValue;

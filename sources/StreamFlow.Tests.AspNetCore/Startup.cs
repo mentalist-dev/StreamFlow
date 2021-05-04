@@ -46,7 +46,7 @@ namespace StreamFlow.Tests.AspNetCore
                         .Use<LogAppIdMiddleware>()
                     )
                     .ConfigurePublisherPipe(builder => builder
-                        .Use(_ => new SetAppIdMiddleware("Published from StreamFlow.Tests.AspNetCore"))
+                        .Use(_ => new SetAppIdMiddleware("Published from StreamFlow.Tests.AspNetCore", "StreamFlow Asp.Net Core Test"))
                     );
             });
         }
@@ -113,6 +113,15 @@ namespace StreamFlow.Tests.AspNetCore
             var value = context.GetHeader("not-existent", "not found");
             _logger.LogInformation("not-existent header value: {HeaderValue}", value);
 
+            var customAppName = context.GetHeader("custom_app_name", "");
+            _logger.LogInformation("custom app name header value: {CustomAppName}", customAppName);
+
+            var customAppId = context.GetHeader("custom_app_id", Guid.Empty);
+            _logger.LogInformation("custom app id header value: {CustomAppId}", customAppId);
+
+            var customAppIdString = context.GetHeader("custom_app_id", string.Empty);
+            _logger.LogInformation("custom app id (string) header value: {CustomAppId}", customAppIdString);
+
             return next(context);
         }
     }
@@ -120,15 +129,19 @@ namespace StreamFlow.Tests.AspNetCore
     public class SetAppIdMiddleware : IStreamFlowMiddleware
     {
         private readonly string _appId;
+        private readonly string _customAppName;
 
-        public SetAppIdMiddleware(string appId)
+        public SetAppIdMiddleware(string appId, string customAppName)
         {
             _appId = appId;
+            _customAppName = customAppName;
         }
 
         public Task Invoke(IMessageContext context, Func<IMessageContext, Task> next)
         {
             context.WithAppId(_appId);
+            context.SetHeader("custom_app_name", _customAppName);
+            context.SetHeader("custom_app_id", Guid.NewGuid());
             return next(context);
         }
     }
