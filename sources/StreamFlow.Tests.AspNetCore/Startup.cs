@@ -122,6 +122,15 @@ namespace StreamFlow.Tests.AspNetCore
             var customAppIdString = context.GetHeader("custom_app_id", string.Empty);
             _logger.LogInformation("custom app id (string) header value: {CustomAppId}", customAppIdString);
 
+            var index = context.GetHeader("index", string.Empty);
+            _logger.LogInformation("index header value: {Index}", index);
+
+            var indexId = context.GetHeader("index-id", string.Empty);
+            _logger.LogInformation("index-id header value: {IndexId}", indexId);
+
+            var priority = context.GetHeader("check-priority", string.Empty);
+            _logger.LogInformation("check-priority header value: {Priority}", priority);
+
             return next(context);
         }
     }
@@ -142,6 +151,7 @@ namespace StreamFlow.Tests.AspNetCore
             context.WithAppId(_appId);
             context.SetHeader("custom_app_name", _customAppName);
             context.SetHeader("custom_app_id", Guid.NewGuid());
+            context.SetHeader("check-priority", "set-inside-middleware");
             return next(context);
         }
     }

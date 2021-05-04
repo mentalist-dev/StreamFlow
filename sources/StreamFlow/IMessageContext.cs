@@ -24,7 +24,7 @@ namespace StreamFlow
         string? Type { get; }
         string? UserId { get; }
 
-        IMessageContext SetHeader(string key, object value);
+        IMessageContext SetHeader(string key, object value, bool overrideIfExists = false);
         IMessageContext RemoveHeader(string key);
 
         T? GetHeader<T>(string key, T? defaultValue);
@@ -77,10 +77,17 @@ namespace StreamFlow
             Content = content;
         }
 
-        public IMessageContext SetHeader(string key, object value)
+        public IMessageContext SetHeader(string key, object value, bool overrideIfExists = false)
         {
             if (string.IsNullOrWhiteSpace(key)) throw new ArgumentNullException(nameof(key));
+
+            if (_headers.ContainsKey(key) && !overrideIfExists)
+            {
+                return this;
+            }
+
             _headers[key] = value ?? throw new ArgumentNullException(nameof(value));
+
             return this;
         }
 

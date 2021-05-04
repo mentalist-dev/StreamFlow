@@ -20,7 +20,19 @@ namespace StreamFlow.Tests.AspNetCore.Controllers
 
         public async Task<IActionResult> Index()
         {
-            await _publisher.PublishAsync(new PingRequest {Timestamp = DateTime.UtcNow});
+            await _publisher.PublishAsync(
+                new PingRequest {Timestamp = DateTime.UtcNow},
+                new PublishOptions
+                {
+                    Headers =
+                    {
+                        {"index", "sent-from-index"},
+                        {"index-id", Guid.NewGuid()},
+                        {"check-priority", "set inside index"},
+                    }
+                }
+            );
+
             return View();
         }
 

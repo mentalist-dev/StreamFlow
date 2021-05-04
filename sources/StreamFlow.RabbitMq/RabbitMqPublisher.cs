@@ -65,6 +65,15 @@ namespace StreamFlow.RabbitMq
                 .WithContentType(contentType)
                 .SetHeader("SF:PublishTime", DateTime.UtcNow.ToString("O"));
 
+            var headers = options?.Headers;
+            if (headers != null)
+            {
+                foreach (var header in headers)
+                {
+                    context.SetHeader(header.Key, header.Value);
+                }
+            }
+
             await _pipe.ExecuteAsync(_services, context, messageContext =>
             {
                 Publish(messageContext, isMandatory);
