@@ -1,9 +1,11 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 using StreamFlow.Pipes;
 using StreamFlow.Server;
 
@@ -11,6 +13,7 @@ namespace StreamFlow.RabbitMq.Server
 {
     public interface IRabbitMqConsumer
     {
+        string Id { get; }
         string? ConsumerTag { get; }
     }
 
@@ -35,9 +38,12 @@ namespace StreamFlow.RabbitMq.Server
         private readonly RabbitMqConsumerInfo _info;
         private readonly ILogger<RabbitMqConsumer> _logger;
         private readonly AsyncEventingBasicConsumer _consumer;
+        private readonly ManualResetEventSlim _consumerIsIdle = new(true);
 
         public RabbitMqConsumer(IServiceProvider services, IModel channel, RabbitMqConsumerInfo consumerInfo, ILogger<RabbitMqConsumer> logger)
         {
+            Id = Guid.NewGuid().ToString();
+
             _services = services;
             _channel = channel;
             _logger = logger;
@@ -45,19 +51,64 @@ namespace StreamFlow.RabbitMq.Server
             _consumer = new AsyncEventingBasicConsumer(channel);
         }
 
+        public string Id { get; }
         public string? ConsumerTag { get; private set; }
         public bool IsDisposed { get; private set; }
+        public bool IsCanceled { get; private set; }
 
-        public void Start(IConsumerRegistration consumerRegistration)
+        public void Start(IConsumerRegistration consumerRegistration, CancellationToken cancellationToken)
         {
-            _consumer.Received += (_, @event) => OnReceivedAsync(@event, consumerRegistration);
+            _consumer.Received += async (_, @event) =>
+            {
+                try
+                {
+                    _consumerIsIdle.Reset();
+
+                    await OnReceivedAsync(@event, consumerRegistration, _channel, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _consumerIsIdle.Set();
+                }
+            };
+
             ConsumerTag = _channel.BasicConsume(_info.Queue, false, _consumer);
         }
 
-        private async Task OnReceivedAsync(BasicDeliverEventArgs @event, IConsumerRegistration consumer)
+        public string? Cancel()
         {
-            if (IsDisposed)
+            var consumerTag = ConsumerTag;
+
+            if (!IsCanceled)
+            {
+                IsCanceled = true;
+
+                if (_channel.IsOpen && !string.IsNullOrWhiteSpace(consumerTag))
+                {
+                    _logger.LogWarning("Cancelling RabbitMQ subscription {ConsumerId} / {ConsumerTag}", Id, consumerTag);
+                    try
+                    {
+                        _channel.BasicCancel(consumerTag);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e, "Unable to cancel RabbitMQ subscription {ConsumerId} / {ConsumerTag}", Id, consumerTag);
+                    }
+                }
+            }
+
+            ConsumerTag = null;
+
+            return consumerTag;
+        }
+
+        private async Task OnReceivedAsync(BasicDeliverEventArgs @event, IConsumerRegistration consumer, IModel channel, CancellationToken cancellationToken)
+        {
+            if (IsDisposed || IsCanceled)
+            {
+                _logger.LogTrace("IsDisposed = {Disposed} or IsCanceled = {Canceled}", IsDisposed, IsCanceled);
                 return;
+            }
 
             var correlationId = @event.BasicProperties?.CorrelationId ?? string.Empty;
             _logger.LogDebug("Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}.", _info, correlationId);
@@ -66,24 +117,63 @@ namespace StreamFlow.RabbitMq.Server
             var serviceProvider = scope.ServiceProvider;
 
             bool? acknowledge = false;
+
+            Exception? lastException = null;
+            ShutdownEventArgs? shutdownArgs = null;
+
+            void ChannelOnModelShutdown(object? _, ShutdownEventArgs args)
+            {
+                shutdownArgs = args;
+            }
+
             try
             {
+                channel.ModelShutdown += ChannelOnModelShutdown;
+
                 var context = new RabbitMqConsumerMessageContext(@event);
 
                 // find handler and consume message
                 var executor = serviceProvider.GetRequiredService<IStreamFlowConsumerPipe>();
-                await executor.ExecuteAsync(serviceProvider, context, ctx => consumer.ExecuteAsync(serviceProvider, ctx));
+                await executor
+                    .ExecuteAsync(serviceProvider, context, ctx => consumer.ExecuteAsync(serviceProvider, ctx, cancellationToken))
+                    .ConfigureAwait(false);
 
                 acknowledge = true;
             }
+            catch (OperationCanceledException e)
+            {
+                lastException = e;
+
+                if (shutdownArgs == null)
+                {
+                    _logger.LogWarning(e, "Message handling failed. Message info = {@MessageInfo}. Operation cancelled.", _info);
+                    acknowledge = false;
+                }
+            }
+            catch (AlreadyClosedException e)
+            {
+                lastException = e;
+                shutdownArgs = e.ShutdownReason;
+            }
             catch (Exception e)
             {
+                lastException = e;
                 _logger.LogError(e, "Message handling failed. Message info = {@MessageInfo}.", _info);
-                acknowledge = await HandleError(serviceProvider, @event, consumer, e);
+                acknowledge = await HandleError(serviceProvider, @event, consumer, e).ConfigureAwait(false);
             }
             finally
             {
-                if (acknowledge != null)
+                channel.ModelShutdown -= ChannelOnModelShutdown;
+
+                if (shutdownArgs != null)
+                {
+                    _logger.LogError(lastException,
+                        "Message handling failed as channel has been closed. Message info = {@MessageInfo}. Shutdown reason = {@ShutdownReason}.",
+                        _info, shutdownArgs
+                    );
+                }
+
+                if (acknowledge != null && !channel.IsClosed)
                 {
                     if (acknowledge == true)
                     {
@@ -118,7 +208,7 @@ namespace StreamFlow.RabbitMq.Server
                 }
                 finally
                 {
-                    StopConsumer();
+                    Cancel();
                 }
 
                 // response to RabbitMQ already handled
@@ -127,7 +217,9 @@ namespace StreamFlow.RabbitMq.Server
 
             try
             {
-                await errorHandler.HandleAsync(_channel, exception, consumerRegistration, @event, _info.Queue);
+                await errorHandler
+                    .HandleAsync(_channel, exception, consumerRegistration, @event, _info.Queue)
+                    .ConfigureAwait(false);
 
                 // error successfully handled, acknowledge current message
                 return true;
@@ -146,24 +238,6 @@ namespace StreamFlow.RabbitMq.Server
             _channel.BasicNack(deliveryTag, false, true);
         }
 
-        private void StopConsumer()
-        {
-            if (!string.IsNullOrWhiteSpace(ConsumerTag))
-            {
-                _logger.LogWarning("Cancelling RabbitMQ subscription");
-                try
-                {
-                    _channel.BasicCancel(ConsumerTag);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e, "Unable to cancel RabbitMQ subscription");
-                }
-            }
-
-            ConsumerTag = null;
-        }
-
         public void Dispose()
         {
             if (IsDisposed)
@@ -173,14 +247,17 @@ namespace StreamFlow.RabbitMq.Server
 
             try
             {
-                StopConsumer();
+                Cancel();
 
-                if (_channel.IsOpen)
+                _consumerIsIdle.Wait(TimeSpan.FromSeconds(30));
+
+                var channel = _channel;
+                if (channel.IsOpen)
                 {
-                    _channel.Close();
+                    _logger.LogDebug("Closing channel.");
+                    channel.Close();
                 }
-
-                _channel.Dispose();
+                channel.Dispose();
             }
             finally
             {

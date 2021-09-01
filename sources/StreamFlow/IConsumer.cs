@@ -1,10 +1,11 @@
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StreamFlow
 {
     public interface IConsumer<in TRequest>
     {
-        Task Handle(IMessage<TRequest> message);
+        Task Handle(IMessage<TRequest> message, CancellationToken cancellationToken);
     }
 
     public interface IMessage<out TRequest>

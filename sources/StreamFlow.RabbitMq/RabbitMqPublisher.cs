@@ -76,12 +76,15 @@ namespace StreamFlow.RabbitMq
 
             await _pipe.ExecuteAsync(_services, context, messageContext =>
             {
-                Publish(messageContext, isMandatory);
+                var publisherConfirmsEnabled = options?.PublisherConfirmsEnabled ?? false;
+                var publisherConfirmsTimeout = options?.PublisherConfirmsTimeout;
+
+                Publish(messageContext, isMandatory, publisherConfirmsEnabled, publisherConfirmsTimeout);
                 return Task.CompletedTask;
-            });
+            }).ConfigureAwait(false);
         }
 
-        private void Publish(IMessageContext message, bool isMandatory)
+        private void Publish(IMessageContext message, bool isMandatory, bool enablePublisherConfirms, TimeSpan? publisherConfirmsTimeout)
         {
             var properties = Channel.CreateBasicProperties();
 
@@ -92,6 +95,18 @@ namespace StreamFlow.RabbitMq
                 message.Exchange, message.RoutingKey, message.CorrelationId);
 
             Channel.BasicPublish(message.Exchange, message.RoutingKey, isMandatory, properties, message.Content);
+
+            if (enablePublisherConfirms)
+            {
+                if (publisherConfirmsTimeout > TimeSpan.Zero)
+                {
+                    Channel.WaitForConfirms(publisherConfirmsTimeout.Value);
+                }
+                else
+                {
+                    Channel.WaitForConfirms();
+                }
+            }
         }
 
         public void Dispose()

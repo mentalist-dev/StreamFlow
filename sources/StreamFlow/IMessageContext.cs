@@ -23,6 +23,7 @@ namespace StreamFlow
         string? ReplyTo { get; }
         string? Type { get; }
         string? UserId { get; }
+        bool? Persistent { get; }
 
         IMessageContext SetHeader(string key, object value, bool overrideIfExists = false);
         IMessageContext RemoveHeader(string key);
@@ -42,6 +43,7 @@ namespace StreamFlow
         IMessageContext WithReplyTo(string? replyTo);
         IMessageContext WithType(string? type);
         IMessageContext WithUserId(string? userId);
+        IMessageContext IsPersistent(bool? persistent);
     }
 
     public enum MessageDeliveryMode
@@ -70,6 +72,7 @@ namespace StreamFlow
         public string? ReplyTo { get; private set; }
         public string? Type { get; private set; }
         public string? UserId { get; private set; }
+        public bool? Persistent { get; private set; }
 
         protected MessageContext(ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default)
         {
@@ -211,6 +214,12 @@ namespace StreamFlow
         public IMessageContext WithUserId(string? userId)
         {
             UserId = userId;
+            return this;
+        }
+
+        public IMessageContext IsPersistent(bool? persistent)
+        {
+            Persistent = persistent;
             return this;
         }
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using StreamFlow.Configuration;
@@ -19,7 +20,7 @@ namespace StreamFlow.Server
         public Type RequestType { get; }
         public Type ConsumerType => typeof(TConsumer);
 
-        public async Task ExecuteAsync(IServiceProvider provider, IMessageContext context)
+        public async Task ExecuteAsync(IServiceProvider provider, IMessageContext context, CancellationToken cancellationToken)
         {
             var formatter = provider.GetRequiredService<IMessageSerializer>();
 
@@ -45,11 +46,11 @@ namespace StreamFlow.Server
             var handleMethodInfo = consumer.GetType().GetMethod(nameof(IConsumer<Type>.Handle));
             // var handle = handleMethodInfo?.MakeGenericMethod(consumer.GetType());
 
-            var task = handleMethodInfo?.Invoke(consumer, new [] {message}) as Task;
+            var task = handleMethodInfo?.Invoke(consumer, new [] {message, cancellationToken}) as Task;
             if (task == null)
                 throw new NullReferenceException($"Unable to invoke consumer handle method");
 
-            await task;
+            await task.ConfigureAwait(false);
         }
     }
 }

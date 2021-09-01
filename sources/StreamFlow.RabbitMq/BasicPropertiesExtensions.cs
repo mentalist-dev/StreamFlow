@@ -119,6 +119,11 @@ namespace StreamFlow.RabbitMq
             {
                 properties.UserId = message.UserId;
             }
+
+            if (message.Persistent.HasValue)
+            {
+                properties.Persistent = message.Persistent.Value;
+            }
         }
     }
 }

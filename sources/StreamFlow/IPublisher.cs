@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,5 +17,8 @@ namespace StreamFlow
         public string? CorrelationId { get; set; }
         public string? RoutingKey { get; set; }
         public bool IsMandatory { get; set; }
+
+        public bool PublisherConfirmsEnabled { get; set; }
+        public TimeSpan? PublisherConfirmsTimeout { get; set; }
     }
 }

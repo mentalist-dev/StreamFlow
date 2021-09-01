@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using StreamFlow.Configuration;
@@ -12,7 +13,7 @@ namespace StreamFlow.Server
         Type RequestType { get; }
         Type ConsumerType { get; }
 
-        Task ExecuteAsync(IServiceProvider provider, IMessageContext context);
+        Task ExecuteAsync(IServiceProvider provider, IMessageContext context, CancellationToken cancellationToken);
     }
 
     public class ConsumerRegistration<TRequest, TConsumer> : IConsumerRegistration
@@ -28,7 +29,7 @@ namespace StreamFlow.Server
         public Type RequestType => typeof(TRequest);
         public Type ConsumerType => typeof(TConsumer);
 
-        public async Task ExecuteAsync(IServiceProvider provider, IMessageContext context)
+        public async Task ExecuteAsync(IServiceProvider provider, IMessageContext context, CancellationToken cancellationToken)
         {
             var formatter = provider.GetRequiredService<IMessageSerializer>();
 
@@ -39,7 +40,7 @@ namespace StreamFlow.Server
             var message = new Message<TRequest>(messageContent, context);
 
             var consumer = provider.GetRequiredService<TConsumer>();
-            await consumer.Handle(message);
+            await consumer.Handle(message, cancellationToken).ConfigureAwait(false);
         }
     }
 }

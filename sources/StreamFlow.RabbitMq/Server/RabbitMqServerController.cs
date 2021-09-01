@@ -25,7 +25,7 @@ namespace StreamFlow.RabbitMq.Server
         {
             foreach (var consumer in _registrations.Consumers)
             {
-                _server.Start(consumer);
+                _server.Start(consumer, cancellationToken);
             }
 
             return Task.CompletedTask;

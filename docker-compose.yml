@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.9.2-management
+    container_name: escid-rabbitmq
+    hostname: rabbitmq
+    ports:
+      - 15672:15672
+      - 5672:5672
+    networks:
+      - rabbitmq
+    environment:
+      - RABBITMQ_HIPE_COMPILE=0
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+
+networks:
+   rabbitmq:

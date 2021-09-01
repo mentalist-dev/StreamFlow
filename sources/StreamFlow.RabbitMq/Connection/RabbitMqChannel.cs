@@ -9,6 +9,7 @@ namespace StreamFlow.RabbitMq.Connection
         {
             Connection = connection ?? throw new ArgumentNullException(nameof(connection));
             Channel = connection.CreateModel();
+            Channel.ConfirmSelect();
         }
 
         public IConnection Connection { get; }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using StreamFlow.Configuration;
 using StreamFlow.RabbitMq.Connection;
@@ -11,7 +13,7 @@ namespace StreamFlow.RabbitMq.Server
 {
     public interface IRabbitMqServer
     {
-        void Start(IConsumerRegistration consumerRegistration);
+        void Start(IConsumerRegistration consumerRegistration, CancellationToken cancellationToken);
         void Stop();
     }
 
@@ -20,19 +22,49 @@ namespace StreamFlow.RabbitMq.Server
         private readonly IServiceProvider _services;
         private readonly IRabbitMqConventions _conventions;
         private readonly Lazy<IConnection> _connection;
-        private readonly List<RabbitMqConsumer> _consumers = new();
+        private readonly List<RabbitMqConsumerController> _consumerControllers = new();
         private readonly ILogger<RabbitMqConsumer> _logger;
 
         public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, IRabbitMqConventions conventions, ILoggerFactory loggers)
         {
             _services = services;
             _conventions = conventions;
-            _connection = new Lazy<IConnection>(connection.Create);
+            _connection = new Lazy<IConnection>(() =>
+            {
+                var physicalConnection = connection.Create();
+
+                physicalConnection.CallbackException += OnPhysicalConnectionCallbackException;
+                physicalConnection.ConnectionBlocked += OnPhysicalConnectionBlocked;
+                physicalConnection.ConnectionShutdown += OnPhysicalConnectionShutdown;
+                physicalConnection.ConnectionUnblocked += OnPhysicalConnectionUnblocked;
+
+                return physicalConnection;
+            });
 
             _logger = loggers.CreateLogger<RabbitMqConsumer>();
         }
 
-        public void Start(IConsumerRegistration consumerRegistration)
+        private void OnPhysicalConnectionUnblocked(object? sender, EventArgs e)
+        {
+            Console.WriteLine("Connection: Unblocked");
+        }
+
+        private void OnPhysicalConnectionShutdown(object? sender, ShutdownEventArgs e)
+        {
+            Console.WriteLine("Connection: Shutdown");
+        }
+
+        private void OnPhysicalConnectionBlocked(object? sender, ConnectionBlockedEventArgs e)
+        {
+            Console.WriteLine("Connection: Blocked");
+        }
+
+        private void OnPhysicalConnectionCallbackException(object? sender, CallbackExceptionEventArgs e)
+        {
+            Console.WriteLine("Connection: Callback Exception");
+        }
+
+        public void Start(IConsumerRegistration consumerRegistration, CancellationToken cancellationToken)
         {
             var requestType = consumerRegistration.RequestType;
             var consumerType = consumerRegistration.ConsumerType;
@@ -60,41 +92,44 @@ namespace StreamFlow.RabbitMq.Server
 
             for (int i = 0; i < consumerCount; i++)
             {
-                var channel = connection.CreateModel();
-
                 var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey);
-                var consumerIndex = i + 1;
 
-                _logger.LogInformation(
-                    "Creating consumer {ConsumerIndex}/{ConsumerCount} consumer. Consumer info: {@ConsumerInfo}.",
-                    consumerIndex, consumerCount, consumerInfo);
+                var controller = new RabbitMqConsumerController(_services, consumerRegistration, consumerInfo, connection, _logger, cancellationToken);
+                controller.Initialize();
 
-                var consumer = new RabbitMqConsumer(_services, channel, consumerInfo, _logger);
-
-                _consumers.Add(consumer);
-
-                consumer.Start(consumerRegistration);
+                _consumerControllers.Add(controller);
             }
         }
 
         public void Stop()
         {
-            foreach (var consumer in _consumers)
+            foreach (var controller in _consumerControllers)
             {
-                consumer.Dispose();
+                controller.Dispose();
             }
+
+            _consumerControllers.Clear();
         }
 
         public void Dispose()
         {
-            foreach (var consumer in _consumers)
+            foreach (var controller in _consumerControllers)
             {
-                consumer.Dispose();
+                controller.Dispose();
             }
+
+            _consumerControllers.Clear();
 
             if (_connection.IsValueCreated)
             {
-                _connection.Value.Dispose();
+                try
+                {
+                    _connection.Value.Close();
+                }
+                finally
+                {
+                    _connection.Value.Dispose();
+                }
             }
         }
 

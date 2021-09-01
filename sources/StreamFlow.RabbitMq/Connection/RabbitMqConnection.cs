@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -38,7 +39,8 @@ namespace StreamFlow.RabbitMq.Connection
         public IConnection Create()
         {
             var endpoints = new DefaultEndpointResolver(new AmqpTcpEndpoint[] {new (_hostName)});
-            return _connectionFactory.CreateConnection(endpoints, _serviceId);
+            var connection = _connectionFactory.CreateConnection(endpoints, _serviceId);
+            return connection;
         }
 
         private ConnectionFactory CreateConnectionFactory(string hostName, string userName, string password, string virtualHost, string? serviceId)
@@ -54,6 +56,7 @@ namespace StreamFlow.RabbitMq.Connection
                 Password = password,
                 VirtualHost = virtualHost,
                 DispatchConsumersAsync = true,
+                AutomaticRecoveryEnabled = false,
                 ClientProperties =
                 {
                     ["copyright"] = "mentalist.dev",

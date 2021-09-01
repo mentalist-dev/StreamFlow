@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -34,13 +35,18 @@ namespace StreamFlow.Tests.AspNetCore
                         .StartConsumerHostedService()
                     )
                     .Consumers(builder => builder
+                        /*
                         .Add<PingRequest, PingRequestConsumer>(options => options
                             .ConsumerCount(5)
                             .ConsumerGroup("gr1"))
                         .Add<PingRequest, PingRequestConsumer>(options => options
                             .ConsumerCount(5)
                             .ConsumerGroup("gr2"))
-                        .Add<PingRequestConsumer>()
+                        */
+                        .Add<PingRequest, PingRequestDelayedConsumer>(options => options
+                            .ConsumerCount(1)
+                            .ConsumerGroup("gr3"))
+                        // .Add<PingRequestConsumer>()
                     )
                     .ConfigureConsumerPipe(builder => builder
                         .Use<LogAppIdMiddleware>()
@@ -75,7 +81,12 @@ namespace StreamFlow.Tests.AspNetCore
                     pattern: "{controller=Home}/{action=Index}/{id?}");
             });
 
-            Task.Factory.StartNew(() => publisher.PublishAsync(new PingRequest {Timestamp = DateTime.UtcNow}));
+            /*
+            Task.Factory.StartNew(() => publisher.PublishAsync(
+                new PingRequest { Timestamp = DateTime.UtcNow },
+                new PublishOptions { PublisherConfirmsEnabled = true })
+            );
+            */
         }
     }
 
@@ -86,11 +97,19 @@ namespace StreamFlow.Tests.AspNetCore
 
     public class PingRequestConsumer : IConsumer<PingRequest>
     {
-        public Task Handle(IMessage<PingRequest> message)
+        public Task Handle(IMessage<PingRequest> message, CancellationToken cancellationToken)
         {
             Console.WriteLine(message.Body.Timestamp);
             throw new Exception("Unable to handle!");
             return Task.CompletedTask;
+        }
+    }
+
+    public class PingRequestDelayedConsumer : IConsumer<PingRequest>
+    {
+        public Task Handle(IMessage<PingRequest> message, CancellationToken cancellationToken)
+        {
+            return Task.Delay(TimeSpan.FromMinutes(2), cancellationToken);
         }
     }
 
