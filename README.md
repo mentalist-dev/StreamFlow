@@ -21,8 +21,8 @@ All names in RabbitMQ server can be defined by implementing IRabbitMqConventions
 However default behavior works like this:
 
 - exchange name is created using request class name
-- queue name is created using <request class name>:<request handler name>[:<service id>][:<consumer group name>]
-- error queue name is created using <request class name>:<request handler name>[:<service id>][:<consumer group name>]:Error
+- queue name is created using `<request class name>:<request handler name>[:<service id>][:<consumer group name>]`
+- error queue name is created using `<request class name>:<request handler name>[:<service id>][:<consumer group name>]:Error`
 
 ```
 A consumer group is a group of consumers that share the same group id. 
@@ -103,7 +103,7 @@ Define message consumer:
 ```
 public class PingRequestConsumer : IConsumer<PingRequest>
 {
-    public Task Handle(IMessage<PingRequest> message)
+    public Task Handle(IMessage<PingRequest> message, CancellationToken cancellation)
     {
         Console.WriteLine(message.Body.Timestamp);
         return Task.CompletedTask;
