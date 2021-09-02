@@ -3,17 +3,42 @@ version: '3'
 services:
   rabbitmq:
     image: rabbitmq:3.9.2-management
-    container_name: escid-rabbitmq
+    container_name: streamflow-rabbitmq
     hostname: rabbitmq
     ports:
       - 15672:15672
       - 5672:5672
     networks:
-      - rabbitmq
+      - streamflow
     environment:
       - RABBITMQ_HIPE_COMPILE=0
     volumes:
       - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
 
+  postgres:
+    container_name: streamflow-postgres
+    image: postgres:13.4
+    ports:
+      - "5432:5432"
+    networks:
+      - streamflow
+    environment:
+      POSTGRES_PASSWORD: "admin"
+      POSTGRES_USER: "admin"
+
+  pgadmin:
+    container_name: streamflow-pgadmin
+    image: dpage/pgadmin4:5.6
+    tty: true
+    ports:
+      - "5480:80"
+    networks:
+      - streamflow
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "postgres@example.com"
+      PGADMIN_DEFAULT_PASSWORD: "postgres"
+    depends_on:
+      - postgres
+      
 networks:
-   rabbitmq:
+   streamflow:

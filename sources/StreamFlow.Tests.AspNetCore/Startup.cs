@@ -3,11 +3,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using StreamFlow.Outbox;
+using StreamFlow.Outbox.EntityFrameworkCore;
 using StreamFlow.RabbitMq;
+using StreamFlow.Tests.AspNetCore.Database;
 
 namespace StreamFlow.Tests.AspNetCore
 {
@@ -27,6 +31,11 @@ namespace StreamFlow.Tests.AspNetCore
 
             var streamFlowOptions = new StreamFlowOptions {ServiceId = "sf-tests"};
 
+            services.AddDbContext<ApplicationDbContext>(options =>
+            {
+                options.UseNpgsql("Server=localhost;User Id=admin;Password=admin;Database=StreamFlow");
+            });
+
             services.AddStreamFlow(streamFlowOptions, transport =>
             {
                 transport
@@ -34,6 +43,12 @@ namespace StreamFlow.Tests.AspNetCore
                         .Connection("localhost", "guest", "guest")
                         .StartConsumerHostedService()
                     )
+                    .WithOutboxSupport(outbox =>
+                    {
+                        outbox
+                            .UseEntityFrameworkCore<ApplicationDbContext>()
+                            .UsePublishingServer();
+                    })
                     .Consumers(builder => builder
                         /*
                         .Add<PingRequest, PingRequestConsumer>(options => options

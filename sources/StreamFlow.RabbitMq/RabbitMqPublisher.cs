@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -39,7 +40,11 @@ namespace StreamFlow.RabbitMq
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
 
-            var exchange = _conventions.GetExchangeName(message.GetType());
+            var exchange = options?.TargetAddress;
+            if (exchange == null)
+            {
+                exchange = _conventions.GetExchangeName(message.GetType());
+            }
 
             var routingKey = options?.RoutingKey;
             if (string.IsNullOrWhiteSpace(routingKey))
@@ -49,7 +54,25 @@ namespace StreamFlow.RabbitMq
 
             var isMandatory = options?.IsMandatory ?? false;
 
-            var body = _messageSerializer.Serialize(message);
+            ReadOnlyMemory<byte> body;
+
+            if (message is byte[] buffer)
+            {
+                body = buffer;
+            }
+            else if (message is ReadOnlyMemory<byte> memoryBuffer)
+            {
+                body = memoryBuffer;
+            }
+            else if (message is string text)
+            {
+                body = Encoding.UTF8.GetBytes(text);
+            }
+            else
+            {
+                body = _messageSerializer.Serialize(message);
+            }
+
             var contentType = _messageSerializer.GetContentType<T>();
 
             var correlationId = options?.CorrelationId;

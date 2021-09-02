@@ -20,5 +20,7 @@ namespace StreamFlow
 
         public bool PublisherConfirmsEnabled { get; set; }
         public TimeSpan? PublisherConfirmsTimeout { get; set; }
+
+        public string? TargetAddress { get; set; }
     }
 }

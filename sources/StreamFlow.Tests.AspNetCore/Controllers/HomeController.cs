@@ -4,15 +4,16 @@ using StreamFlow.Tests.AspNetCore.Models;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using StreamFlow.Outbox;
 
 namespace StreamFlow.Tests.AspNetCore.Controllers
 {
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
-        private readonly IPublisher _publisher;
+        private readonly IOutboxPublisher _publisher;
 
-        public HomeController(ILogger<HomeController> logger, IPublisher publisher)
+        public HomeController(ILogger<HomeController> logger, IOutboxPublisher publisher)
         {
             _logger = logger;
             _publisher = publisher;

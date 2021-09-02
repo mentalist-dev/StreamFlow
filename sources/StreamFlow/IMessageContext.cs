@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Threading;
 
 namespace StreamFlow
 {
     public interface IMessageContext
     {
-        CancellationToken CancellationToken { get; }
         IReadOnlyDictionary<string, object> Headers { get; }
         ReadOnlyMemory<byte> Content { get; }
         string? ContentEncoding { get; }
@@ -56,7 +54,6 @@ namespace StreamFlow
     {
         private readonly Dictionary<string, object> _headers = new();
 
-        public CancellationToken CancellationToken { get; }
         public IReadOnlyDictionary<string, object> Headers => _headers;
         public ReadOnlyMemory<byte> Content { get; }
         public string? ContentEncoding { get; private set; }
@@ -74,9 +71,8 @@ namespace StreamFlow
         public string? UserId { get; private set; }
         public bool? Persistent { get; private set; }
 
-        protected MessageContext(ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default)
+        protected MessageContext(ReadOnlyMemory<byte> content)
         {
-            CancellationToken = cancellationToken;
             Content = content;
         }
 

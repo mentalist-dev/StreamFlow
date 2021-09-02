@@ -1,12 +1,11 @@
 using System;
-using System.Threading;
 using RabbitMQ.Client.Events;
 
 namespace StreamFlow.RabbitMq
 {
     public class RabbitMqConsumerMessageContext : MessageContext
     {
-        public RabbitMqConsumerMessageContext(BasicDeliverEventArgs @event, CancellationToken cancellationToken = default) : base(@event.Body, cancellationToken)
+        public RabbitMqConsumerMessageContext(BasicDeliverEventArgs @event) : base(@event.Body)
         {
             WithExchange(@event.Exchange);
             WithRoutingKey(@event.RoutingKey);
@@ -26,7 +25,7 @@ namespace StreamFlow.RabbitMq
 
     public class RabbitMqPublisherMessageContext : MessageContext
     {
-        public RabbitMqPublisherMessageContext(ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default) : base(content, cancellationToken)
+        public RabbitMqPublisherMessageContext(ReadOnlyMemory<byte> content) : base(content)
         {
         }
     }

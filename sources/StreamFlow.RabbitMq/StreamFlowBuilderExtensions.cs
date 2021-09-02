@@ -2,7 +2,9 @@ using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StreamFlow.Configuration;
+using StreamFlow.Outbox;
 using StreamFlow.RabbitMq.Connection;
+using StreamFlow.RabbitMq.Outbox;
 using StreamFlow.RabbitMq.Server;
 using StreamFlow.RabbitMq.Server.Hosting;
 
@@ -15,6 +17,7 @@ namespace StreamFlow.RabbitMq
             builder.Services.TryAddSingleton<IRabbitMqConventions, RabbitMqConventions>();
             builder.Services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
             builder.Services.AddScoped<IPublisher, RabbitMqPublisher>();
+            builder.Services.AddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
 
             var rabbitMq = new StreamFlowRabbitMq(builder.Services, builder.Options);
             configure(rabbitMq);
