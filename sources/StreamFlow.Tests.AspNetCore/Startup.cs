@@ -9,9 +9,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Prometheus;
 using StreamFlow.Outbox;
 using StreamFlow.Outbox.EntityFrameworkCore;
 using StreamFlow.RabbitMq;
+using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.Tests.AspNetCore.Database;
 
 namespace StreamFlow.Tests.AspNetCore
@@ -43,6 +45,7 @@ namespace StreamFlow.Tests.AspNetCore
                     .UsingRabbitMq(mq => mq
                         .Connection("localhost", "guest", "guest")
                         .StartConsumerHostedService()
+                        .WithPrometheusMetrics()
                     )
                     .WithOutboxSupport(outbox =>
                     {
@@ -67,7 +70,7 @@ namespace StreamFlow.Tests.AspNetCore
                         .Add<PingRequest, PingRequestConsumer>(options => options
                             .ConsumerCount(1)
                             .ConsumerGroup("gr4")
-                            .IncludeHeadersToLoggerScope(false))
+                            .IncludeHeadersToLoggerScope(true))
                         // .Add<PingRequestConsumer>()
                     )
                     .ConfigureConsumerPipe(builder => builder
@@ -96,11 +99,15 @@ namespace StreamFlow.Tests.AspNetCore
 
             app.UseAuthorization();
 
+            app.UseHttpMetrics();
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllerRoute(
                     name: "default",
                     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+                endpoints.MapMetrics();
             });
 
             /*

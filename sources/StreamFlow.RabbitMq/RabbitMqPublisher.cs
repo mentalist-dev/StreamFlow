@@ -14,6 +14,7 @@ namespace StreamFlow.RabbitMq
         private readonly IServiceProvider _services;
         private readonly IStreamFlowPublisherPipe _pipe;
         private readonly IRabbitMqConventions _conventions;
+        private readonly IRabbitMqMetrics _metrics;
         private readonly IMessageSerializer _messageSerializer;
         private readonly ILogger<RabbitMqPublisher> _logger;
         private readonly Lazy<RabbitMqChannel> _model;
@@ -23,11 +24,13 @@ namespace StreamFlow.RabbitMq
             , IMessageSerializer messageSerializer
             , IRabbitMqConnection connection
             , IRabbitMqConventions conventions
+            , IRabbitMqMetrics metrics
             , ILogger<RabbitMqPublisher> logger)
         {
             if (connection == null) throw new ArgumentNullException(nameof(connection));
             _services = services;
             _conventions = conventions;
+            _metrics = metrics;
             _pipe = pipe;
             _messageSerializer = messageSerializer;
             _logger = logger;
@@ -105,6 +108,8 @@ namespace StreamFlow.RabbitMq
                 Publish(messageContext, isMandatory, publisherConfirmsEnabled, publisherConfirmsTimeout);
                 return Task.CompletedTask;
             }).ConfigureAwait(false);
+
+            _metrics.MessagePublished(exchange);
         }
 
         private void Publish(IMessageContext message, bool isMandatory, bool enablePublisherConfirms, TimeSpan? publisherConfirmsTimeout)

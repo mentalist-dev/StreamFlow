@@ -114,6 +114,9 @@ namespace StreamFlow.RabbitMq.Server
             using var scope = _services.CreateScope();
             var serviceProvider = scope.ServiceProvider;
 
+            var metrics = serviceProvider.GetRequiredService<IRabbitMqMetrics>();
+            using var progress = metrics.ConsumerInProgress(_info.Exchange, _info.Queue);
+
             var correlationId = @event.BasicProperties?.CorrelationId ?? Guid.NewGuid().ToString();
 
             using var loggerScope = CreateLoggerScope(serviceProvider, @event, consumer.Options, correlationId);
@@ -156,11 +159,15 @@ namespace StreamFlow.RabbitMq.Server
             }
             catch (AlreadyClosedException e)
             {
+                metrics.MessageConsumerError(_info.Exchange, _info.Queue);
+
                 lastException = e;
                 shutdownArgs = e.ShutdownReason;
             }
             catch (Exception e)
             {
+                metrics.MessageConsumerError(_info.Exchange, _info.Queue);
+
                 lastException = e;
                 _logger.LogError(e, "Message handling failed. Message info = {@MessageInfo}.", _info);
                 acknowledge = await HandleError(serviceProvider, @event, consumer, e).ConfigureAwait(false);

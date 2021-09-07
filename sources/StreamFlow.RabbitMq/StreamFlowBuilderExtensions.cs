@@ -19,8 +19,10 @@ namespace StreamFlow.RabbitMq
             builder.Services.AddScoped<IPublisher, RabbitMqPublisher>();
             builder.Services.AddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
             builder.Services.TryAddScoped<ILoggerScopeStateFactory, LoggerScopeStateFactory>();
+            builder.Services.AddSingleton<IRabbitMqMetrics, NoRabbitMqMetrics>();
 
             var rabbitMq = new StreamFlowRabbitMq(builder.Services, builder.Options);
+
             configure(rabbitMq);
 
             return builder;
@@ -31,6 +33,7 @@ namespace StreamFlow.RabbitMq
     {
         IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/");
         IStreamFlowRabbitMq StartConsumerHostedService();
+        IStreamFlowRabbitMq WithMetricsProvider<TMetrics>() where TMetrics : class, IRabbitMqMetrics;
     }
 
     internal class StreamFlowRabbitMq: IStreamFlowRabbitMq
@@ -57,6 +60,14 @@ namespace StreamFlow.RabbitMq
         public IStreamFlowRabbitMq StartConsumerHostedService()
         {
             _services.AddHostedService<RabbitMqHostedService>();
+
+            return this;
+        }
+
+        public IStreamFlowRabbitMq WithMetricsProvider<TMetrics>() where TMetrics: class, IRabbitMqMetrics
+        {
+            var descriptor = new ServiceDescriptor(typeof(IRabbitMqMetrics), typeof(TMetrics), ServiceLifetime.Singleton);
+            _services.Replace(descriptor);
 
             return this;
         }

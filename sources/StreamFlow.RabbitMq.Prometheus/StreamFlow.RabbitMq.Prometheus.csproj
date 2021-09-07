@@ -7,11 +7,11 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>mentalist.dev</Authors>
     <Company />
-    <Title>RabbitMQ Messaging Framework</Title>
+    <Title>RabbitMQ Messaging Framework Metrics</Title>
     <Description>RabbitMQ.Client wrapper</Description>
     <PackageProjectUrl>https://github.com/mentalist-dev/StreamFlow</PackageProjectUrl>
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
-    <PackageTags>Messaging RabbitMq Framework StreamFlow</PackageTags>
+    <PackageTags>Messaging RabbitMq Framework StreamFlow Prometheus</PackageTags>
     <Version>3.5.0</Version>
     <PackageReleaseNotes></PackageReleaseNotes>
     <AssemblyVersion>3.0.0.0</AssemblyVersion>
@@ -28,11 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="RabbitMQ.Client" Version="6.2.2" />
+    <PackageReference Include="prometheus-net" Version="3.5.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StreamFlow\StreamFlow.csproj" />
+    <ProjectReference Include="..\StreamFlow.RabbitMq\StreamFlow.RabbitMq.csproj" />
   </ItemGroup>
 
 </Project>
