@@ -18,6 +18,7 @@ namespace StreamFlow.RabbitMq
             builder.Services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
             builder.Services.AddScoped<IPublisher, RabbitMqPublisher>();
             builder.Services.AddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
+            builder.Services.TryAddScoped<ILoggerScopeStateFactory, LoggerScopeStateFactory>();
 
             var rabbitMq = new StreamFlowRabbitMq(builder.Services, builder.Options);
             configure(rabbitMq);
