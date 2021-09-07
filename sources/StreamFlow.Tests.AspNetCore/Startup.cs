@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -58,9 +59,15 @@ namespace StreamFlow.Tests.AspNetCore
                             .ConsumerCount(5)
                             .ConsumerGroup("gr2"))
                         */
+                        /*
                         .Add<PingRequest, PingRequestDelayedConsumer>(options => options
                             .ConsumerCount(1)
                             .ConsumerGroup("gr3"))
+                        */
+                        .Add<PingRequest, PingRequestConsumer>(options => options
+                            .ConsumerCount(1)
+                            .ConsumerGroup("gr4")
+                            .IncludeHeadersToLoggerScope(false))
                         // .Add<PingRequestConsumer>()
                     )
                     .ConfigureConsumerPipe(builder => builder
@@ -165,7 +172,12 @@ namespace StreamFlow.Tests.AspNetCore
             var priority = context.GetHeader("check-priority", string.Empty);
             _logger.LogInformation("check-priority header value: {Priority}", priority);
 
-            return next(context);
+            var state = new List<KeyValuePair<string, object>> { new("Account", "Account Name") };
+
+            using (_logger.BeginScope(state))
+            {
+                return next(context);
+            }
         }
     }
 

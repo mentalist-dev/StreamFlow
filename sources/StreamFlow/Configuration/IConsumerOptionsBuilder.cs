@@ -7,5 +7,6 @@ namespace StreamFlow.Configuration
         IConsumerOptionsBuilder ConsumerGroup(string consumerGroupName);
         IConsumerOptionsBuilder ConsumerCount(int consumerCount);
         IConsumerOptionsBuilder ConfigureQueue(Action<QueueOptions> configure);
+        IConsumerOptionsBuilder IncludeHeadersToLoggerScope(bool include = true, params string[] exceptHeaderNames);
     }
 }

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
+using StreamFlow.Configuration;
 using StreamFlow.Pipes;
 using StreamFlow.Server;
 
@@ -110,11 +113,13 @@ namespace StreamFlow.RabbitMq.Server
                 return;
             }
 
-            var correlationId = @event.BasicProperties?.CorrelationId ?? string.Empty;
-            _logger.LogDebug("Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}.", _info, correlationId);
-
             using var scope = _services.CreateScope();
             var serviceProvider = scope.ServiceProvider;
+
+            using var loggerScope = CreateLoggerScope(@event, consumer.Options);
+
+            var correlationId = @event.BasicProperties?.CorrelationId ?? string.Empty;
+            _logger.LogDebug("Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}.", _info, correlationId);
 
             bool? acknowledge = false;
 
@@ -185,6 +190,43 @@ namespace StreamFlow.RabbitMq.Server
                     }
                 }
             }
+        }
+
+        private IDisposable? CreateLoggerScope(BasicDeliverEventArgs @event, ConsumerOptions consumerOptions)
+        {
+            if (consumerOptions.IncludeHeadersToLoggerScope)
+            {
+                var state = new List<KeyValuePair<string, object>>();
+
+                foreach (var header in @event.BasicProperties.Headers)
+                {
+                    var key = header.Key;
+                    var value = header.Value;
+
+                    if (value == null)
+                        continue;
+
+                    if (!consumerOptions.ExcludeHeaderNamesFromLoggerScope.Contains(key))
+                    {
+                        if (value.GetType() == typeof(byte[]))
+                        {
+                            var stringValue = Encoding.UTF8.GetString((byte[])value);
+                            state.Add(new KeyValuePair<string, object>(key, stringValue));
+                        }
+                        else
+                        {
+                            state.Add(new KeyValuePair<string, object>(key, value));
+                        }
+                    }
+                }
+
+                if (state.Count == 0)
+                    return null;
+
+                return _logger.BeginScope(state);
+            }
+
+            return null;
         }
 
         private async Task<bool?> HandleError(IServiceProvider serviceProvider, BasicDeliverEventArgs @event, IConsumerRegistration consumerRegistration, Exception exception)

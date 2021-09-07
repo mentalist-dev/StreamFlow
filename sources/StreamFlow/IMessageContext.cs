@@ -104,35 +104,40 @@ namespace StreamFlow
         {
             if (Headers.TryGetValue(key, out var value))
             {
-                if (value.GetType() == typeof(T))
-                {
-                    return (T) value;
-                }
-
-                if (typeof(T) == typeof(string))
-                {
-                    // https://github.com/rabbitmq/rabbitmq-dotnet-client/issues/415
-
-                    object stringValue = value.GetType() == typeof(byte[])
-                        ? Encoding.UTF8.GetString((byte[]) value)
-                        : value.ToString()!;
-
-                    return (T) stringValue;
-                }
-
-                if (typeof(T) == typeof(Guid))
-                {
-                    string guidValue = value.GetType() == typeof(byte[])
-                        ? Encoding.UTF8.GetString((byte[])value)
-                        : value.ToString()!;
-
-                    return (T) (object) Guid.Parse(guidValue);
-                }
-
-                return (T)Convert.ChangeType(value, typeof(T));
+                return GetHeaderValue<T>(value);
             }
 
             return defaultValue;
+        }
+
+        public static T GetHeaderValue<T>(object value)
+        {
+            if (value.GetType() == typeof(T))
+            {
+                return (T)value;
+            }
+
+            if (typeof(T) == typeof(string))
+            {
+                // https://github.com/rabbitmq/rabbitmq-dotnet-client/issues/415
+
+                object stringValue = value.GetType() == typeof(byte[])
+                    ? Encoding.UTF8.GetString((byte[])value)
+                    : value.ToString()!;
+
+                return (T)stringValue;
+            }
+
+            if (typeof(T) == typeof(Guid))
+            {
+                string guidValue = value.GetType() == typeof(byte[])
+                    ? Encoding.UTF8.GetString((byte[])value)
+                    : value.ToString()!;
+
+                return (T)(object)Guid.Parse(guidValue);
+            }
+
+            return (T)Convert.ChangeType(value, typeof(T));
         }
 
         public IMessageContext WithContentEncoding(string? contentEncoding)

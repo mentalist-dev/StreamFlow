@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace StreamFlow.Configuration
 {
@@ -7,6 +8,8 @@ namespace StreamFlow.Configuration
         public string? ConsumerGroup { get; private set; }
         public int ConsumerCount { get; private set; } = 1;
         public QueueOptions Queue { get; } = new();
+        public bool IncludeHeadersToLoggerScope { get; private set; } = true;
+        public HashSet<string> ExcludeHeaderNamesFromLoggerScope { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         IConsumerOptionsBuilder IConsumerOptionsBuilder.ConsumerGroup(string consumerGroupName)
         {
@@ -25,6 +28,16 @@ namespace StreamFlow.Configuration
             if (configure == null) throw new ArgumentNullException(nameof(configure));
 
             configure(Queue);
+
+            return this;
+        }
+
+        IConsumerOptionsBuilder IConsumerOptionsBuilder.IncludeHeadersToLoggerScope(bool include, params string[] exceptHeaderNames)
+        {
+            IncludeHeadersToLoggerScope = include;
+
+            ExcludeHeaderNamesFromLoggerScope.Clear();
+            ExcludeHeaderNamesFromLoggerScope.UnionWith(exceptHeaderNames);
 
             return this;
         }
