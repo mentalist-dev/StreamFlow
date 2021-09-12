@@ -18,7 +18,6 @@ namespace StreamFlow.RabbitMq.Connection
         public void Dispose()
         {
             Channel.Dispose();
-            Connection.Dispose();
         }
     }
 }

@@ -3,41 +3,36 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using RabbitMQ.Client;
 using StreamFlow.Pipes;
-using StreamFlow.RabbitMq.Connection;
 
 namespace StreamFlow.RabbitMq
 {
-    public class RabbitMqPublisher : IPublisher, IDisposable
+    public class RabbitMqPublisher : IPublisher
     {
         private readonly IServiceProvider _services;
         private readonly IStreamFlowPublisherPipe _pipe;
         private readonly IRabbitMqConventions _conventions;
         private readonly IRabbitMqMetrics _metrics;
         private readonly IMessageSerializer _messageSerializer;
+        private readonly IRabbitMqChannelPool _channels;
         private readonly ILogger<RabbitMqPublisher> _logger;
-        private readonly Lazy<RabbitMqChannel> _model;
 
         public RabbitMqPublisher(IServiceProvider services
             , IStreamFlowPublisherPipe pipe
             , IMessageSerializer messageSerializer
-            , IRabbitMqConnection connection
+            , IRabbitMqChannelPool channels
             , IRabbitMqConventions conventions
             , IRabbitMqMetrics metrics
             , ILogger<RabbitMqPublisher> logger)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
             _services = services;
             _conventions = conventions;
             _metrics = metrics;
             _pipe = pipe;
             _messageSerializer = messageSerializer;
+            _channels = channels;
             _logger = logger;
-            _model = new Lazy<RabbitMqChannel>(() => new RabbitMqChannel(connection.Create()));
         }
-
-        protected IModel Channel => _model.Value.Channel;
 
         public async Task PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T: class
         {
@@ -48,6 +43,8 @@ namespace StreamFlow.RabbitMq
             {
                 exchange = _conventions.GetExchangeName(message.GetType());
             }
+
+            using var _ = _metrics.MessageInPublishing(exchange);
 
             var routingKey = options?.RoutingKey;
             if (string.IsNullOrWhiteSpace(routingKey))
@@ -100,49 +97,53 @@ namespace StreamFlow.RabbitMq
                 }
             }
 
-            await _pipe.ExecuteAsync(_services, context, messageContext =>
+            await _pipe
+                .ExecuteAsync(_services, context, GetPublishAction(options, isMandatory))
+                .ConfigureAwait(false);
+        }
+
+        private Func<IMessageContext, Task> GetPublishAction(PublishOptions? options, bool isMandatory)
+        {
+            return context =>
             {
                 var publisherConfirmsEnabled = options?.PublisherConfirmsEnabled ?? false;
                 var publisherConfirmsTimeout = options?.PublisherConfirmsTimeout;
 
-                Publish(messageContext, isMandatory, publisherConfirmsEnabled, publisherConfirmsTimeout);
+                Publish(context, isMandatory, publisherConfirmsEnabled, publisherConfirmsTimeout);
                 return Task.CompletedTask;
-            }).ConfigureAwait(false);
-
-            _metrics.MessagePublished(exchange);
+            };
         }
 
         private void Publish(IMessageContext message, bool isMandatory, bool enablePublisherConfirms, TimeSpan? publisherConfirmsTimeout)
         {
-            var properties = Channel.CreateBasicProperties();
-
-            message.MapTo(properties);
-
-            _logger.LogDebug(
-                "Publishing message to exchange [{ExchangeName}] using routing key [{RoutingKey}] with CorrelationId [{CorrelationId}]",
-                message.Exchange, message.RoutingKey, message.CorrelationId);
-
-            Channel.BasicPublish(message.Exchange, message.RoutingKey, isMandatory, properties, message.Content);
-
-            if (enablePublisherConfirms)
+            var model = _channels.Get();
+            try
             {
-                if (publisherConfirmsTimeout > TimeSpan.Zero)
+                var properties = model.Channel.CreateBasicProperties();
+
+                message.MapTo(properties);
+
+                _logger.LogDebug(
+                    "Publishing message to exchange [{ExchangeName}] using routing key [{RoutingKey}] with CorrelationId [{CorrelationId}]",
+                    message.Exchange, message.RoutingKey, message.CorrelationId);
+
+                model.Channel.BasicPublish(message.Exchange, message.RoutingKey, isMandatory, properties, message.Content);
+
+                if (enablePublisherConfirms)
                 {
-                    Channel.WaitForConfirms(publisherConfirmsTimeout.Value);
-                }
-                else
-                {
-                    Channel.WaitForConfirms();
+                    if (publisherConfirmsTimeout > TimeSpan.Zero)
+                    {
+                        model.Channel.WaitForConfirms(publisherConfirmsTimeout.Value);
+                    }
+                    else
+                    {
+                        model.Channel.WaitForConfirms();
+                    }
                 }
             }
-        }
-
-        public void Dispose()
-        {
-            if (_model.IsValueCreated)
+            finally
             {
-                var value = _model.Value;
-                value.Dispose();
+                _channels.Return(model);
             }
         }
     }

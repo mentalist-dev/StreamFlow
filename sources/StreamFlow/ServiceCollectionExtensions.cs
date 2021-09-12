@@ -1,6 +1,7 @@
 using System;
 using StreamFlow;
 using StreamFlow.Configuration;
+using StreamFlow.Outbox;
 
 // ReSharper disable once CheckNamespace
 namespace Microsoft.Extensions.DependencyInjection
@@ -20,6 +21,8 @@ namespace Microsoft.Extensions.DependencyInjection
             var builder = new StreamFlowBuilder(services, registrations, options);
 
             transport(builder);
+
+            builder.WithOutboxSupport(_ => { });
 
             return services;
         }
