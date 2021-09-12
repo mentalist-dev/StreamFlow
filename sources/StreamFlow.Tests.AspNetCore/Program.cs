@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 using StreamFlow.Tests.AspNetCore.Database;
 
 namespace StreamFlow.Tests.AspNetCore
@@ -25,7 +27,9 @@ namespace StreamFlow.Tests.AspNetCore
             Host.CreateDefaultBuilder(args)
                 .UseSerilog((_, _, config) =>
                 {
-                    config.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+                    config.MinimumLevel.ControlledBy(new LoggingLevelSwitch(LogEventLevel.Debug));
+                    config.WriteTo.Console(
+                        outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}");
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {

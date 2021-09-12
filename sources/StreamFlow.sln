@@ -13,7 +13,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamFlow.Tests", "StreamF
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamFlow.Outbox.EntityFrameworkCore", "StreamFlow.Outbox.EntityFrameworkCore\StreamFlow.Outbox.EntityFrameworkCore.csproj", "{D1DA273E-B6E2-4E42-9854-479639C5D23F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StreamFlow.RabbitMq.Prometheus", "StreamFlow.RabbitMq.Prometheus\StreamFlow.RabbitMq.Prometheus.csproj", "{A1D05E38-B322-4CA3-8963-F7A8E6942D02}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamFlow.RabbitMq.Prometheus", "StreamFlow.RabbitMq.Prometheus\StreamFlow.RabbitMq.Prometheus.csproj", "{A1D05E38-B322-4CA3-8963-F7A8E6942D02}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

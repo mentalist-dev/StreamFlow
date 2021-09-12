@@ -47,12 +47,14 @@ namespace StreamFlow.Tests.AspNetCore
                         .StartConsumerHostedService()
                         .WithPrometheusMetrics()
                     )
+                    /*
                     .WithOutboxSupport(outbox =>
                     {
                         outbox
                             .UseEntityFrameworkCore<ApplicationDbContext>()
                             .UsePublishingServer();
                     })
+                    */
                     .Consumers(builder => builder
                         /*
                         .Add<PingRequest, PingRequestConsumer>(options => options
@@ -129,7 +131,7 @@ namespace StreamFlow.Tests.AspNetCore
         public Task Handle(IMessage<PingRequest> message, CancellationToken cancellationToken)
         {
             Console.WriteLine(message.Body.Timestamp);
-            throw new Exception("Unable to handle!");
+            // throw new Exception("Unable to handle!");
             return Task.CompletedTask;
         }
     }
