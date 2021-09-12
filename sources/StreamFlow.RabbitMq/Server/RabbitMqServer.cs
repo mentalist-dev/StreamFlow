@@ -46,22 +46,22 @@ namespace StreamFlow.RabbitMq.Server
 
         private void OnPhysicalConnectionUnblocked(object? sender, EventArgs e)
         {
-            Console.WriteLine("Connection: Unblocked");
+            _logger.LogTrace("Connection: Unblocked");
         }
 
         private void OnPhysicalConnectionShutdown(object? sender, ShutdownEventArgs e)
         {
-            Console.WriteLine("Connection: Shutdown");
+            _logger.LogDebug("Connection: Shutdown. Arguments: {ShutdownEventArs}.", e);
         }
 
         private void OnPhysicalConnectionBlocked(object? sender, ConnectionBlockedEventArgs e)
         {
-            Console.WriteLine("Connection: Blocked");
+            _logger.LogTrace("Connection: Blocked. Reason: {Reason}.", e.Reason);
         }
 
         private void OnPhysicalConnectionCallbackException(object? sender, CallbackExceptionEventArgs e)
         {
-            Console.WriteLine("Connection: Callback Exception");
+            _logger.LogWarning(e.Exception, "Connection: Callback Exception");
         }
 
         public void Start(IConsumerRegistration consumerRegistration, CancellationToken cancellationToken)
@@ -124,7 +124,10 @@ namespace StreamFlow.RabbitMq.Server
             {
                 try
                 {
-                    _connection.Value.Close();
+                    if (_connection.Value.IsOpen)
+                    {
+                        _connection.Value.Close();
+                    }
                 }
                 finally
                 {
@@ -135,31 +138,55 @@ namespace StreamFlow.RabbitMq.Server
 
         private void TryCreateTopology(IConnection connection, QueueOptions? queueOptions, string exchange, string queue, string routingKey)
         {
-            using var channel = connection.CreateModel();
+            var channel = connection.CreateModel();
 
-            TryCreateExchange(exchange, channel);
+            try
+            {
+                TryCreateExchange(exchange, channel, queueOptions?.ExchangeOptions);
 
-            TryCreateQueue(queueOptions, queue, channel);
+                if (channel.IsClosed)
+                {
+                    channel.Dispose();
+                    channel = connection.CreateModel();
+                }
 
-            TryCreateQueueAndExchangeBinding(exchange, queue, routingKey, channel);
+                TryCreateQueue(queueOptions, queue, channel);
+
+                if (channel.IsClosed)
+                {
+                    channel.Dispose();
+                    channel = connection.CreateModel();
+                }
+
+                TryCreateQueueAndExchangeBinding(exchange, queue, routingKey, channel);
+            }
+            finally
+            {
+                channel.Dispose();
+            }
         }
 
-        private void TryCreateExchange(string exchange, IModel? channel)
+        private void TryCreateExchange(string exchange, IModel channel, ExchangeOptions? exchangeOptions)
         {
             try
             {
+                var durable = exchangeOptions?.Durable ?? true;
+                var autoDelete = exchangeOptions?.AutoDelete ?? false;
+                var arguments = exchangeOptions?.Arguments;
+
                 _logger.LogInformation("Declaring exchange: [{ExchangeName}].", exchange);
-                channel.ExchangeDeclare(exchange, ExchangeType.Topic);
+                channel.ExchangeDeclare(exchange, ExchangeType.Topic, durable, autoDelete, arguments);
             }
             catch (OperationInterruptedException e)
             {
-                _logger.LogError(e, "Unable to declare exchange [{ExchangeName}]", exchange);
-
                 // 406: PRECONDITION_FAILED, exchange exists, but with different properties
                 if (e.ShutdownReason?.ReplyCode != 406)
                 {
+                    _logger.LogError(e, "Unable to declare exchange [{ExchangeName}]", exchange);
                     throw;
                 }
+
+                _logger.LogWarning(e, "Exchange already exists with name [{ExchangeName}]", exchange);
             }
             catch (Exception e)
             {
@@ -185,19 +212,18 @@ namespace StreamFlow.RabbitMq.Server
             }
             catch (OperationInterruptedException e)
             {
-                _logger.LogError(e, "Unable to declare queue [{QueueName}]. Queue options = {@QueueOptions}.", queue,
-                    queueOptions);
-
                 // 406: PRECONDITION_FAILED, queue exists, but with different properties
                 if (e.ShutdownReason?.ReplyCode != 406)
                 {
+                    _logger.LogError(e, "Unable to declare queue [{QueueName}]. Queue options = {@QueueOptions}.", queue, queueOptions);
                     throw;
                 }
+
+                _logger.LogWarning(e, "Queue already exists with name [{QueueName}] but different options. Desired queue options = {@QueueOptions}.", queue, queueOptions);
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Unable to declare queue [{QueueName}]. Queue options = {@QueueOptions}.", queue,
-                    queueOptions);
+                _logger.LogError(e, "Unable to declare queue [{QueueName}]. Queue options = {@QueueOptions}.", queue, queueOptions);
                 throw;
             }
         }
@@ -214,15 +240,19 @@ namespace StreamFlow.RabbitMq.Server
             }
             catch (OperationInterruptedException e)
             {
-                _logger.LogError(e,
-                    "Unable to bind exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].",
-                    exchange, queue, routingKey);
-
                 // 406: PRECONDITION_FAILED, binding exists, but with different properties
                 if (e.ShutdownReason?.ReplyCode != 406)
                 {
+                    _logger.LogError(e,
+                        "Unable to bind exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].",
+                        exchange, queue, routingKey);
+
                     throw;
                 }
+
+                _logger.LogWarning(e,
+                    "Binding already exists for exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].",
+                    exchange, queue, routingKey);
             }
             catch (Exception e)
             {

@@ -87,17 +87,15 @@ namespace StreamFlow.RabbitMq
                 properties.MessageId = message.MessageId;
             }
 
-            if (message.DeliveryMode != null)
+            var deliveryMode = message.DeliveryMode ?? MessageDeliveryMode.Persistent;
+            switch (deliveryMode)
             {
-                switch (message.DeliveryMode)
-                {
-                    case MessageDeliveryMode.NonPersistent:
-                        properties.DeliveryMode = 0;
-                        break;
-                    case MessageDeliveryMode.Persistent:
-                        properties.DeliveryMode = 1;
-                        break;
-                }
+                case MessageDeliveryMode.NonPersistent:
+                    properties.DeliveryMode = 0;
+                    break;
+                case MessageDeliveryMode.Persistent:
+                    properties.DeliveryMode = 1;
+                    break;
             }
 
             if (message.Priority != null)
@@ -120,10 +118,7 @@ namespace StreamFlow.RabbitMq
                 properties.UserId = message.UserId;
             }
 
-            if (message.Persistent.HasValue)
-            {
-                properties.Persistent = message.Persistent.Value;
-            }
+            properties.Persistent = message.Persistent ?? true;
         }
     }
 }

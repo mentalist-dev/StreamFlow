@@ -9,6 +9,8 @@ namespace StreamFlow.Configuration
         public bool AutoDelete { get; private set; }
         public IDictionary<string, object>? Arguments { get; private set; }
 
+        public ExchangeOptions ExchangeOptions { get; } = new();
+
         IQueueOptionsBuilder IQueueOptionsBuilder.Durable(bool durable)
         {
             Durable = durable;
@@ -33,5 +35,12 @@ namespace StreamFlow.Configuration
             Arguments[key] = value;
             return this;
         }
+    }
+
+    public class ExchangeOptions
+    {
+        public bool? Durable { get; set; }
+        public bool? AutoDelete { get; set; }
+        public IDictionary<string, object>? Arguments { get; private set; }
     }
 }
