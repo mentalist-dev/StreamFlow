@@ -121,7 +121,12 @@ namespace StreamFlow.Tests.AspNetCore
         }
     }
 
-    public class PingRequest
+    public interface IDomainEvent
+    {
+
+    }
+
+    public class PingRequest: IDomainEvent
     {
         public DateTime Timestamp { get; set; }
     }

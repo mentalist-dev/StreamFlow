@@ -8,7 +8,7 @@ namespace StreamFlow.Outbox
 {
     public interface IOutboxMessageStore
     {
-        Task SaveAsync<T>(OutboxMessage outboxMessage, bool triggerSaveChanges, CancellationToken cancellationToken = default) where T : class;
+        Task SaveAsync<T>(OutboxMessage outboxMessage, Type messageBodyType, bool triggerSaveChanges, CancellationToken cancellationToken = default) where T : class;
 
         Task<IAsyncDisposable?> StartLock(string key);
 
@@ -27,9 +27,9 @@ namespace StreamFlow.Outbox
             _serializer = serializer;
         }
 
-        public Task SaveAsync<T>(OutboxMessage outboxMessage, bool triggerSaveChanges, CancellationToken cancellationToken = default) where T : class
+        public Task SaveAsync<T>(OutboxMessage outboxMessage, Type messageBodyType, bool triggerSaveChanges, CancellationToken cancellationToken = default) where T : class
         {
-            var message = _serializer.Deserialize<T>(outboxMessage.Body)!;
+            var message = _serializer.Deserialize<T>(outboxMessage.Body, messageBodyType)!;
             var options = outboxMessage.Options != null
                 ? _serializer.Deserialize<PublishOptions>(outboxMessage.Options)
                 : null;

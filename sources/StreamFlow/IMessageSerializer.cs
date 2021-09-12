@@ -8,6 +8,8 @@ namespace StreamFlow
 
         T? Deserialize<T>(ReadOnlyMemory<byte> body);
 
+        T? Deserialize<T>(ReadOnlyMemory<byte> body, Type returnType);
+
         string GetContentType<T>();
     }
 }

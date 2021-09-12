@@ -22,7 +22,7 @@ namespace StreamFlow.Outbox.EntityFrameworkCore
             _services = services;
         }
 
-        public async Task SaveAsync<T>(OutboxMessage outboxMessage, bool triggerSaveChanges, CancellationToken cancellationToken = default)
+        public async Task SaveAsync<T>(OutboxMessage outboxMessage, Type messageBodyType, bool triggerSaveChanges, CancellationToken cancellationToken = default)
             where T : class
         {
             var context = _services.GetRequiredService<TContext>();

@@ -61,7 +61,7 @@ namespace StreamFlow.Outbox
                     : null
             };
 
-            await _messageStore.SaveAsync<T>(entity, triggerSaveChanges, cancellationToken).ConfigureAwait(false);
+            await _messageStore.SaveAsync<T>(entity, message.GetType(), triggerSaveChanges, cancellationToken).ConfigureAwait(false);
 
             StreamFlowOutboxPublisher.Continue.Set();
         }

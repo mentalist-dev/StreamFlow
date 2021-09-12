@@ -20,13 +20,18 @@ namespace StreamFlow.RabbitMq
 
         public ReadOnlyMemory<byte> Serialize<T>(T message)
         {
-            return JsonSerializer.SerializeToUtf8Bytes(message, JsonSerializerOptions);
+            var messageType = message?.GetType() ?? typeof(T);
+            return JsonSerializer.SerializeToUtf8Bytes(message, messageType, JsonSerializerOptions);
         }
 
         public T? Deserialize<T>(ReadOnlyMemory<byte> body)
         {
-            var bytes = body.ToArray();
-            return JsonSerializer.Deserialize<T>(bytes, JsonSerializerOptions);
+            return Deserialize<T>(body, typeof(T));
+        }
+
+        public T? Deserialize<T>(ReadOnlyMemory<byte> body, Type returnType)
+        {
+            return (T?)JsonSerializer.Deserialize(body.Span, returnType, JsonSerializerOptions);
         }
 
         public string GetContentType<T>()
