@@ -4,15 +4,17 @@ namespace StreamFlow.RabbitMq
 {
     public interface IRabbitMqMetrics
     {
-        void MessagePublished(string exchangeName);
+        IDisposable? MessageInPublishing(string exchangeName);
         IDisposable? ConsumerInProgress(string exchangeName, string queue);
         void MessageConsumerError(string exchangeName, string queue);
+        void PublisherChannelPoolSize(int poolSize);
     }
 
     internal class NoRabbitMqMetrics : IRabbitMqMetrics
     {
-        public void MessagePublished(string exchangeName)
+        public IDisposable? MessageInPublishing(string exchangeName)
         {
+            return null;
         }
 
         public IDisposable? ConsumerInProgress(string exchangeName, string queue)
@@ -22,6 +24,11 @@ namespace StreamFlow.RabbitMq
 
         public void MessageConsumerError(string exchangeName, string queue)
         {
+        }
+
+        public void PublisherChannelPoolSize(int poolSize)
+        {
+
         }
     }
 }
