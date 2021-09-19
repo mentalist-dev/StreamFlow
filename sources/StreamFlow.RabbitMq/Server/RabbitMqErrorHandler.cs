@@ -49,7 +49,12 @@ namespace StreamFlow.RabbitMq.Server
                     properties.Headers["SF:ExceptionStackTrace"] = exception.StackTrace;
                 }
 
-                channel.QueueDeclare(errorQueueName, true, false, false);
+                var arguments = new Dictionary<string, object>
+                {
+                    { "streamflow-error-queue", true }
+                };
+
+                channel.QueueDeclare(errorQueueName, true, false, false, arguments);
                 channel.BasicPublish(string.Empty, errorQueueName, true, properties, @event.Body);
             }
             catch (Exception e)

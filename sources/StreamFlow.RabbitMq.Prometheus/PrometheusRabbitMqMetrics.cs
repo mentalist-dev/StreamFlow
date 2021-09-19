@@ -46,7 +46,6 @@ namespace StreamFlow.RabbitMq.Prometheus
                 .NewTimer();
         }
 
-
         public void MessageConsumerError(string exchangeName, string queue)
         {
             _messageConsumerErrorCounter

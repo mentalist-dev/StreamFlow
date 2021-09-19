@@ -20,7 +20,7 @@ namespace StreamFlow.RabbitMq
 
         public string GetExchangeName(Type requestType)
         {
-            return requestType.Name;
+            return $"{_options.ExchangePrefix}{requestType.Name}";
         }
 
         public string GetQueueName(Type requestType, Type consumerType, string? consumerGroup)
@@ -28,7 +28,7 @@ namespace StreamFlow.RabbitMq
             var queueName = CreateQueueNameBase(requestType, consumerType);
             queueName = AddServiceId(queueName, _options.ServiceId);
             queueName = AddConsumerGroup(queueName, consumerGroup);
-            return queueName;
+            return $"{_options.ExchangePrefix}{queueName}";
         }
 
         public string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup)
@@ -36,19 +36,23 @@ namespace StreamFlow.RabbitMq
             var queueName = CreateQueueNameBase(requestType, consumerType);
             queueName = AddServiceId(queueName, _options.ServiceId);
             queueName = AddConsumerGroup(queueName, consumerGroup);
-            return AddErrorSuffix(queueName);
+            var errorQueueName = AddErrorSuffix(queueName);
+            return $"{_options.ExchangePrefix}{errorQueueName}";
         }
 
         protected virtual string CreateQueueNameBase(Type requestType, Type consumerType)
         {
-            return $"{requestType.Name}:{consumerType.Name}";
+            var separator = GetSeparator();
+            return $"{requestType.Name}{separator}{consumerType.Name}";
         }
 
         protected virtual string AddServiceId(string queueName, string? serviceId)
         {
             if (!string.IsNullOrWhiteSpace(serviceId))
             {
-                queueName += ":" + serviceId;
+                var separator = GetSeparator();
+
+                queueName += separator + serviceId;
             }
 
             return queueName;
@@ -58,7 +62,9 @@ namespace StreamFlow.RabbitMq
         {
             if (!string.IsNullOrWhiteSpace(consumerGroup))
             {
-                queueName += ":" + consumerGroup;
+                var separator = GetSeparator();
+
+                queueName += separator + consumerGroup;
             }
 
             return queueName;
@@ -66,7 +72,24 @@ namespace StreamFlow.RabbitMq
 
         protected virtual string AddErrorSuffix(string queueName)
         {
-            return $"{queueName}:Error";
+            var suffix = _options.ErrorSuffix;
+
+            if (suffix == null)
+            {
+                var separator = GetSeparator();
+
+                suffix = separator + "Error";
+            }
+
+            return $"{queueName}:{suffix}";
+        }
+
+        private string GetSeparator()
+        {
+            var separator = _options.Separator;
+            if (string.IsNullOrWhiteSpace(separator))
+                separator = ":";
+            return separator;
         }
     }
 }

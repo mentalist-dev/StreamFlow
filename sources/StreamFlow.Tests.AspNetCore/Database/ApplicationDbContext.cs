@@ -16,7 +16,7 @@ namespace StreamFlow.Tests.AspNetCore.Database
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.ApplyConfigurationsFromAssembly(typeof(IOutboxMessageContext).Assembly);
+            modelBuilder.ApplyStreamFlowConsumerConfiguration();
         }
     }
 }

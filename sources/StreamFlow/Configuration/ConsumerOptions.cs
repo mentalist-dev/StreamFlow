@@ -23,7 +23,7 @@ namespace StreamFlow.Configuration
             return this;
         }
 
-        IConsumerOptionsBuilder IConsumerOptionsBuilder.ConfigureQueue(Action<QueueOptions> configure)
+        IConsumerOptionsBuilder IConsumerOptionsBuilder.ConfigureQueue(Action<IQueueOptionsBuilder> configure)
         {
             if (configure == null) throw new ArgumentNullException(nameof(configure));
 

@@ -10,8 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Prometheus;
-using StreamFlow.Outbox;
-using StreamFlow.Outbox.EntityFrameworkCore;
 using StreamFlow.RabbitMq;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.Tests.AspNetCore.Database;
@@ -32,7 +30,12 @@ namespace StreamFlow.Tests.AspNetCore
         {
             services.AddControllersWithViews();
 
-            var streamFlowOptions = new StreamFlowOptions {ServiceId = "sf-tests"};
+            var streamFlowOptions = new StreamFlowOptions
+            {
+                ServiceId = "sf-tests",
+                QueuePrefix = "SF.",
+                ExchangePrefix = "SF."
+            };
 
             services.AddDbContext<ApplicationDbContext>(options =>
             {
@@ -46,6 +49,7 @@ namespace StreamFlow.Tests.AspNetCore
                         .Connection("localhost", "guest", "guest")
                         .StartConsumerHostedService()
                         .WithPrometheusMetrics()
+                        .WithPublisherChannelPoolOptions(new RabbitMqChannelPoolOptions {MaxPoolSize = 10})
                     )
                     /*
                     .WithOutboxSupport(outbox =>
@@ -72,7 +76,9 @@ namespace StreamFlow.Tests.AspNetCore
                         .Add<PingRequest, PingRequestConsumer>(options => options
                             .ConsumerCount(1)
                             .ConsumerGroup("gr4")
-                            .IncludeHeadersToLoggerScope(true))
+                            .IncludeHeadersToLoggerScope()
+                            .ConfigureQueue(q => q.AutoDelete())
+                        )
                         // .Add<PingRequestConsumer>()
                     )
                     .ConfigureConsumerPipe(builder => builder
