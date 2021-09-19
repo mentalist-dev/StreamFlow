@@ -81,7 +81,7 @@ namespace StreamFlow.RabbitMq
                 suffix = separator + "Error";
             }
 
-            return $"{queueName}:{suffix}";
+            return $"{queueName}{suffix}";
         }
 
         private string GetSeparator()
