@@ -12,7 +12,9 @@ using Microsoft.Extensions.Logging;
 using Prometheus;
 using StreamFlow.RabbitMq;
 using StreamFlow.RabbitMq.Prometheus;
+using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.AspNetCore.Database;
+using StreamFlow.Tests.AspNetCore.Models;
 
 namespace StreamFlow.Tests.AspNetCore
 {
@@ -79,6 +81,7 @@ namespace StreamFlow.Tests.AspNetCore
                             .IncludeHeadersToLoggerScope()
                             .ConfigureQueue(q => q.AutoDelete())
                         )
+                        .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
                         // .Add<PingRequestConsumer>()
                     )
                     .ConfigureConsumerPipe(builder => builder

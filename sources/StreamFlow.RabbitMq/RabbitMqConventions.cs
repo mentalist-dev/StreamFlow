@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace StreamFlow.RabbitMq
 {
@@ -42,8 +43,33 @@ namespace StreamFlow.RabbitMq
 
         protected virtual string CreateQueueNameBase(Type requestType, Type consumerType)
         {
+            var consumerTypeName = GetTypeName(consumerType);
+
             var separator = GetSeparator();
-            return $"{requestType.Name}{separator}{consumerType.Name}";
+            return $"{requestType.Name}{separator}{consumerTypeName}";
+        }
+
+        protected virtual string GetTypeName(Type consumerType)
+        {
+            var consumerTypeName = consumerType.Name;
+            if (consumerType.IsGenericType)
+            {
+                var index = consumerTypeName.IndexOf('`');
+                if (index > 0)
+                {
+                    consumerTypeName = consumerTypeName.Substring(0, index);
+
+                    var arguments = consumerType.GenericTypeArguments.Select(GetTypeName);
+                    var joined = string.Join(',', arguments);
+
+                    if (!string.IsNullOrWhiteSpace(joined))
+                    {
+                        consumerTypeName += $"<{joined}>";
+                    }
+                }
+            }
+
+            return consumerTypeName;
         }
 
         protected virtual string AddServiceId(string queueName, string? serviceId)

@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\StreamFlow.RabbitMq\StreamFlow.RabbitMq.csproj" />
     <ProjectReference Include="..\StreamFlow\StreamFlow.csproj" />
   </ItemGroup>
 

@@ -12,7 +12,7 @@ namespace StreamFlow.RabbitMq.Server
 
     public class LoggerScopeStateFactory: ILoggerScopeStateFactory
     {
-        public virtual List<KeyValuePair<string, object>>? Create(BasicDeliverEventArgs @event, ConsumerOptions consumerOptions, RabbitMqConsumerInfo consumerInfo, string correlationId)
+        public virtual List<KeyValuePair<string, object>> Create(BasicDeliverEventArgs @event, ConsumerOptions consumerOptions, RabbitMqConsumerInfo consumerInfo, string correlationId)
         {
             var state = new List<KeyValuePair<string, object>>
             {
@@ -22,7 +22,7 @@ namespace StreamFlow.RabbitMq.Server
                 new("RoutingKey", consumerInfo.RoutingKey)
             };
 
-            if (consumerOptions.IncludeHeadersToLoggerScope)
+            if (consumerOptions.IncludeHeadersToLoggerScope && @event.BasicProperties?.Headers != null)
             {
                 foreach (var header in @event.BasicProperties.Headers)
                 {

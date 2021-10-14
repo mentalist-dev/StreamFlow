@@ -1,21 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using StreamFlow.Tests.AspNetCore.Models;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using StreamFlow.Outbox;
+using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 
 namespace StreamFlow.Tests.AspNetCore.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly ILogger<HomeController> _logger;
         private readonly IOutboxPublisher _publisher;
 
-        public HomeController(ILogger<HomeController> logger, IOutboxPublisher publisher)
+        public HomeController(IOutboxPublisher publisher)
         {
-            _logger = logger;
             _publisher = publisher;
         }
 
@@ -36,6 +34,24 @@ namespace StreamFlow.Tests.AspNetCore.Controllers
             );
 
             return View();
+        }
+
+        public async Task<IActionResult> TimeSheet()
+        {
+            var ev = new TimeSheetEditedEvent
+            {
+                PortfolioId = Guid.NewGuid(),
+                SecurityUserId = Guid.NewGuid(),
+                TimeEntryId = Guid.NewGuid(),
+                Changes = new TimeSheetChangesDto
+                {
+                    TotalAmount = new StateChangeObj<decimal>(100, 50)
+                }
+            };
+
+            await _publisher.PublishAsync(ev);
+
+            return Ok();
         }
 
         public IActionResult Privacy()

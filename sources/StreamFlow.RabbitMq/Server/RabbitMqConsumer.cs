@@ -67,6 +67,13 @@ namespace StreamFlow.RabbitMq.Server
 
                     await OnReceivedAsync(@event, consumerRegistration, _channel, cancellationToken).ConfigureAwait(false);
                 }
+                catch (Exception e)
+                {
+                    _logger.LogCritical(e, "Unhandled exception occurred. Consumer is now stopping..");
+
+                    try { _channel.BasicNack(@event.DeliveryTag, false, true); } catch { /**/ }
+                    try { Cancel(); } catch { /**/ }
+                }
                 finally
                 {
                     _consumerIsIdle.Set();
