@@ -1,10 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,7 +70,7 @@ namespace StreamFlow.Outbox.EntityFrameworkCore
         {
             var bytes = Encoding.Unicode.GetBytes(key);
 
-            using var sha256 = new SHA256Managed();
+            using var sha256 = SHA256.Create();
             var hash = sha256.ComputeHash(bytes);
             var hashString = string.Empty;
             foreach (byte x in hash)

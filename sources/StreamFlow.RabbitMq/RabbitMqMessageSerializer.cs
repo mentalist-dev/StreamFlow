@@ -12,7 +12,7 @@ namespace StreamFlow.RabbitMq
         {
             JsonSerializerOptions = new JsonSerializerOptions
             {
-                IgnoreNullValues = true
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
 
             JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
