@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
 using StreamFlow.RabbitMq;
+using StreamFlow.RabbitMq.Connection;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.AspNetCore.Database;
@@ -40,7 +41,11 @@ namespace StreamFlow.Tests.AspNetCore
                         .Connection("localhost", "guest", "guest")
                         .StartConsumerHostedService()
                         .WithPrometheusMetrics()
-                        .WithPublisherChannelPoolOptions(new RabbitMqChannelPoolOptions {MaxPoolSize = 10})
+                        .WithPublisherChannelPoolOptions(new RabbitMqChannelPoolOptions
+                        {
+                            MaxPoolSize = 10,
+                            ConfirmationType = ConfirmationType.Transactional
+                        })
                     )
                     /*
                     .WithOutboxSupport(outbox =>

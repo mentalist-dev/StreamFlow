@@ -24,6 +24,8 @@ namespace StreamFlow.RabbitMq
         /// Default is one minute.
         /// </summary>
         public TimeSpan RetentionPeriod { get; set; } = TimeSpan.FromMinutes(1);
+
+        public ConfirmationType? ConfirmationType { get; set; }
     }
 
     public class RabbitMqChannelPool: IRabbitMqChannelPool, IDisposable
@@ -87,7 +89,7 @@ namespace StreamFlow.RabbitMq
             if (channel == null)
             {
                 var connection = GetConnection();
-                channel = new RabbitMqChannel(connection);
+                channel = new RabbitMqChannel(connection, _options.ConfirmationType);
             }
 
             _metrics.PublisherChannelPoolSize(_channels.Count);

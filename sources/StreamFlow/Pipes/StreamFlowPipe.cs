@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
 namespace StreamFlow.Pipes
 {
     public interface IStreamFlowConsumerPipe

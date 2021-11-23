@@ -1,9 +1,8 @@
-using System;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RabbitMQ.Client.Events;
 using StreamFlow.Pipes;
+using StreamFlow.RabbitMq.Connection;
 
 namespace StreamFlow.RabbitMq
 {
@@ -34,7 +33,7 @@ namespace StreamFlow.RabbitMq
             _logger = logger;
         }
 
-        public async Task PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T: class
+        public async Task<PublishResponse> PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T: class
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
 
@@ -97,26 +96,36 @@ namespace StreamFlow.RabbitMq
                 }
             }
 
+            var request = new PublishRequest(options, isMandatory);
+
             await _pipe
-                .ExecuteAsync(_services, context, GetPublishAction(options, isMandatory))
+                .ExecuteAsync(_services, context, GetPublishAction(request))
                 .ConfigureAwait(false);
+
+            return request.Response ?? new PublishResponse();
         }
 
-        private Func<IMessageContext, Task> GetPublishAction(PublishOptions? options, bool isMandatory)
+        private Func<IMessageContext, Task> GetPublishAction(PublishRequest request)
         {
             return context =>
             {
+                var options = request.Options;
                 var publisherConfirmsEnabled = options?.PublisherConfirmsEnabled ?? false;
                 var publisherConfirmsTimeout = options?.PublisherConfirmsTimeout;
 
-                Publish(context, isMandatory, publisherConfirmsEnabled, publisherConfirmsTimeout);
+                bool isMandatory = request.IsMandatory;
+
+                request.Response = Publish(context, isMandatory, publisherConfirmsEnabled, publisherConfirmsTimeout);
+
                 return Task.CompletedTask;
             };
         }
 
-        private void Publish(IMessageContext message, bool isMandatory, bool enablePublisherConfirms, TimeSpan? publisherConfirmsTimeout)
+        private PublishResponse Publish(IMessageContext message, bool isMandatory, bool enablePublisherConfirms, TimeSpan? publisherConfirmsTimeout)
         {
             var model = _channels.Get();
+            var subscribedEvents = false;
+            var response = new PublishResponse();
             try
             {
                 var properties = model.Channel.CreateBasicProperties();
@@ -127,23 +136,63 @@ namespace StreamFlow.RabbitMq
                     "Publishing message to exchange [{ExchangeName}] using routing key [{RoutingKey}] with CorrelationId [{CorrelationId}]",
                     message.Exchange, message.RoutingKey, message.CorrelationId);
 
+                if (model.Confirmation == ConfirmationType.PublisherConfirms)
+                {
+                    response.Sequence(model.Channel.NextPublishSeqNo);
+                    if (enablePublisherConfirms)
+                    {
+                        subscribedEvents = true;
+                        model.Channel.BasicAcks += OnAcknowledge;
+                        model.Channel.BasicNacks += OnReject;
+                    }
+                }
+
                 model.Channel.BasicPublish(message.Exchange, message.RoutingKey, isMandatory, properties, message.Content);
 
                 if (enablePublisherConfirms)
                 {
-                    if (publisherConfirmsTimeout > TimeSpan.Zero)
-                    {
-                        model.Channel.WaitForConfirms(publisherConfirmsTimeout.Value);
-                    }
-                    else
-                    {
-                        model.Channel.WaitForConfirms();
-                    }
+                    model.Confirm(publisherConfirmsTimeout);
                 }
             }
             finally
             {
+                if (subscribedEvents)
+                {
+                    model.Channel.BasicAcks -= OnAcknowledge;
+                    model.Channel.BasicNacks -= OnReject;
+                }
+
                 _channels.Return(model);
+            }
+
+            void OnAcknowledge(object? sender, BasicAckEventArgs args)
+            {
+                var deliveryTag = args.DeliveryTag;
+                var multiple = args.Multiple;
+                response.Acknowledged(deliveryTag, multiple);
+            }
+
+            void OnReject(object? sender, BasicNackEventArgs args)
+            {
+                var deliveryTag = args.DeliveryTag;
+                var multiple = args.Multiple;
+                response.Rejected(deliveryTag, multiple);
+            }
+
+            return response;
+        }
+
+        private class PublishRequest
+        {
+            public PublishOptions? Options { get; set; }
+            public bool IsMandatory { get; set; }
+
+            public PublishResponse? Response { get; set; }
+
+            public PublishRequest(PublishOptions? options, bool isMandatory)
+            {
+                Options = options;
+                IsMandatory = isMandatory;
             }
         }
     }
