@@ -79,7 +79,7 @@ namespace StreamFlow.Configuration
             var consumerOptions = new ConsumerOptions();
             consumer?.Invoke(consumerOptions);
 
-            var registration = new ConsumerRegistration<TRequest, TConsumer>(consumerOptions);
+            var registration = new ConsumerRegistration<TRequest, TConsumer>(consumerOptions, _options.Default);
 
             _registrations.Add(registration);
 
@@ -100,7 +100,7 @@ namespace StreamFlow.Configuration
 
                     var arguments = @interface.GetGenericArguments();
 
-                    var registration = new GenericConsumerRegistration<TConsumer>(arguments.First(), consumerOptions);
+                    var registration = new GenericConsumerRegistration<TConsumer>(arguments.First(), consumerOptions, _options.Default);
 
                     _registrations.Add(registration);
                 }

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace StreamFlow.Configuration
 {
     public class ConsumerOptions: IConsumerOptionsBuilder

@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using StreamFlow.Configuration;
 
@@ -9,6 +6,7 @@ namespace StreamFlow.Server
     public interface IConsumerRegistration
     {
         ConsumerOptions Options { get; }
+        StreamFlowDefaults? Default { get; }
 
         Type RequestType { get; }
         Type ConsumerType { get; }
@@ -19,12 +17,14 @@ namespace StreamFlow.Server
     public class ConsumerRegistration<TRequest, TConsumer> : IConsumerRegistration
         where TConsumer : class, IConsumer<TRequest>
     {
-        public ConsumerRegistration(ConsumerOptions consumerOptions)
+        public ConsumerRegistration(ConsumerOptions consumerOptions, StreamFlowDefaults? @default)
         {
             Options = consumerOptions;
+            Default = @default;
         }
 
         public ConsumerOptions Options { get; }
+        public StreamFlowDefaults? Default { get; }
 
         public Type RequestType => typeof(TRequest);
         public Type ConsumerType => typeof(TConsumer);

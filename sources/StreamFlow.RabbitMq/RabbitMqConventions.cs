@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-
 namespace StreamFlow.RabbitMq
 {
     public interface IRabbitMqConventions
@@ -29,7 +26,7 @@ namespace StreamFlow.RabbitMq
             var queueName = CreateQueueNameBase(requestType, consumerType);
             queueName = AddServiceId(queueName, _options.ServiceId);
             queueName = AddConsumerGroup(queueName, consumerGroup);
-            return $"{_options.ExchangePrefix}{queueName}";
+            return $"{_options.QueuePrefix}{queueName}";
         }
 
         public string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup)
@@ -38,7 +35,7 @@ namespace StreamFlow.RabbitMq
             queueName = AddServiceId(queueName, _options.ServiceId);
             queueName = AddConsumerGroup(queueName, consumerGroup);
             var errorQueueName = AddErrorSuffix(queueName);
-            return $"{_options.ExchangePrefix}{errorQueueName}";
+            return $"{_options.QueuePrefix}{errorQueueName}";
         }
 
         protected virtual string CreateQueueNameBase(Type requestType, Type consumerType)

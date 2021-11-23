@@ -1,20 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Prometheus;
 using StreamFlow.RabbitMq;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.AspNetCore.Database;
-using StreamFlow.Tests.AspNetCore.Models;
 
 namespace StreamFlow.Tests.AspNetCore
 {
@@ -35,8 +24,8 @@ namespace StreamFlow.Tests.AspNetCore
             var streamFlowOptions = new StreamFlowOptions
             {
                 ServiceId = "sf-tests",
-                QueuePrefix = "SF.",
-                ExchangePrefix = "SF."
+                QueuePrefix = "SFQ.",
+                ExchangePrefix = "SFE."
             };
 
             services.AddDbContext<ApplicationDbContext>(options =>

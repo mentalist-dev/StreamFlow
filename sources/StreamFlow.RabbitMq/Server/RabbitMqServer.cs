@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -69,6 +66,7 @@ namespace StreamFlow.RabbitMq.Server
             var requestType = consumerRegistration.RequestType;
             var consumerType = consumerRegistration.ConsumerType;
             var consumerGroup = consumerRegistration.Options.ConsumerGroup;
+            var defaults = consumerRegistration.Default;
 
             var connection = _connection.Value;
 
@@ -82,7 +80,7 @@ namespace StreamFlow.RabbitMq.Server
             if (string.IsNullOrWhiteSpace(queue))
                 throw new Exception($"Unable to resolve queue name from consumer type [{consumerType}] with consumer group [{consumerGroup}]");
 
-            TryCreateTopology(connection, consumerRegistration.Options.Queue, exchange, queue, routingKey);
+            TryCreateTopology(connection, defaults, consumerRegistration.Options.Queue, exchange, queue, routingKey);
 
             var consumerCount = consumerRegistration.Options.ConsumerCount;
             if (consumerCount < 1)
@@ -136,7 +134,7 @@ namespace StreamFlow.RabbitMq.Server
             }
         }
 
-        private void TryCreateTopology(IConnection connection, QueueOptions? queueOptions, string exchange, string queue, string routingKey)
+        private void TryCreateTopology(IConnection connection, StreamFlowDefaults? defaults, QueueOptions? queueOptions, string exchange, string queue, string routingKey)
         {
             var channel = connection.CreateModel();
 
@@ -150,7 +148,7 @@ namespace StreamFlow.RabbitMq.Server
                     channel = connection.CreateModel();
                 }
 
-                TryCreateQueue(queueOptions, queue, channel);
+                TryCreateQueue(defaults, queueOptions, queue, channel);
 
                 if (channel.IsClosed)
                 {
@@ -195,12 +193,35 @@ namespace StreamFlow.RabbitMq.Server
             }
         }
 
-        private void TryCreateQueue(QueueOptions? queueOptions, string queue, IModel channel)
+        private void TryCreateQueue(StreamFlowDefaults? defaults, QueueOptions? queueOptions, string queue, IModel channel)
         {
             var durable = queueOptions?.Durable ?? true;
             var exclusive = queueOptions?.Exclusive ?? false;
             var autoDelete = queueOptions?.AutoDelete ?? false;
             var arguments = queueOptions?.Arguments;
+            var quorum = queueOptions?.QuorumOptions ?? defaults?.QuorumOptions ?? new QueueQuorumOptions {Enabled = true};
+
+            if (quorum.Enabled)
+            {
+                autoDelete = false;
+                exclusive = false;
+
+                arguments ??= new Dictionary<string, object>();
+                arguments.Add("x-queue-type", "quorum");
+
+                if (quorum.Size > 0)
+                {
+                    if (quorum.Size % 2 == 0)
+                    {
+                        _logger.LogWarning(
+                            "Quorum size for {QueueName} is set to even number {QuorumSize}. " +
+                            "It is highly recommended for the factor to be an odd number.",
+                            queue, quorum.Size);
+                    }
+
+                    arguments.Add("x-quorum-initial-group-size", quorum.Size);
+                }
+            }
 
             try
             {

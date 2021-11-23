@@ -6,5 +6,6 @@ namespace StreamFlow.Configuration
         IQueueOptionsBuilder Exclusive(bool exclusive = true);
         IQueueOptionsBuilder AutoDelete(bool autoDelete = true);
         IQueueOptionsBuilder Argument(string key, object value);
+        IQueueOptionsBuilder Quorum(int? initialGroupSize = null, bool enabled = true);
     }
 }

@@ -1,5 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
 using StreamFlow.Configuration;
 
 namespace StreamFlow.RabbitMq.Server
