@@ -1,7 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using StreamFlow.Server;
@@ -38,18 +35,15 @@ namespace StreamFlow.RabbitMq.Server
             _cancellationToken = cancellationToken;
         }
 
-        public void Initialize()
+        public void Start()
         {
             if (_disposing || _disposed)
                 throw new ObjectDisposedException("Controller already disposed.");
 
-            lock (this)
+            if (!_initialized)
             {
-                if (!_initialized)
-                {
-                    CreateConsumerInternal(_consumerInfo);
-                    _initialized = true;
-                }
+                CreateConsumerInternal(_consumerInfo);
+                _initialized = true;
             }
         }
 
@@ -62,47 +56,31 @@ namespace StreamFlow.RabbitMq.Server
 
         private void CreateConsumerInternal(RabbitMqConsumerInfo consumerInfo)
         {
+            if (_disposing || _disposed)
+                return;
+
             _logger.LogInformation("Creating new consumer. Consumer info: {@ConsumerInfo}.", consumerInfo);
 
-            var channel = _connection.CreateModel();
-
-            channel.ModelShutdown += (_, _) => RecreateConsumer(_consumerInfo);
-
-            _consumer = new RabbitMqConsumer(_services, channel, consumerInfo, _logger);
+            _consumer = new RabbitMqConsumer(_services, _connection, consumerInfo, _logger);
+            _consumer.ChannelCrashed += (_, _) =>
+            {
+                _logger.LogWarning("Consumer channel crashed. Will try to recreate new.");
+                Task.Factory.StartNew(() => RecoverConsumer(consumerInfo), _cancellationToken);
+            };
 
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_cancellationToken);
 
             _consumer.Start(_registration, _cancellationTokenSource.Token);
         }
 
-        private void RecreateConsumer(RabbitMqConsumerInfo consumerInfo)
+        private async Task RecoverConsumer(RabbitMqConsumerInfo consumerInfo)
         {
-            if (_disposing || _disposed)
-                return;
+            await Task.Delay(TimeSpan.FromSeconds(5), _cancellationToken);
 
-            _logger.LogTrace("Channel was shut down. Recreating consumer. Consumer info: {@ConsumerInfo}.", consumerInfo);
+            _logger.LogWarning("Trying to recover consumer..");
 
             DestroyConsumer();
-
-            Task.Factory.StartNew(() => CreateConsumer(consumerInfo), CancellationToken.None);
-        }
-
-        private void CreateConsumer(RabbitMqConsumerInfo consumerInfo)
-        {
-            try
-            {
-                if (!_disposing && !_disposed)
-                {
-                    lock (this)
-                    {
-                        CreateConsumerInternal(consumerInfo);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Unable to create consumer. Consumer info: {@ConsumerInfo}.", consumerInfo);
-            }
+            CreateConsumerInternal(consumerInfo);
         }
 
         #region Destroy Consumer

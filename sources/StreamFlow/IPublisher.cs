@@ -15,8 +15,8 @@ namespace StreamFlow
         public string? RoutingKey { get; set; }
         public bool IsMandatory { get; set; }
 
-        public bool PublisherConfirmsEnabled { get; set; }
-        public TimeSpan? PublisherConfirmsTimeout { get; set; }
+        public bool WaitForConfirmation { get; set; }
+        public TimeSpan? WaitForConfirmationTimeout { get; set; }
 
         public string? TargetAddress { get; set; }
     }
@@ -26,9 +26,9 @@ namespace StreamFlow
         private readonly ConcurrentBag<PublishResponseResult> _acknowledged = new();
         private readonly ConcurrentBag<PublishResponseResult> _rejected = new();
 
-        public ulong? SequenceNo { get; private set; }
+        public ulong? SequenceNo { get; }
 
-        public void Sequence(ulong sequenceNo)
+        public PublishResponse(ulong? sequenceNo)
         {
             SequenceNo = sequenceNo;
         }

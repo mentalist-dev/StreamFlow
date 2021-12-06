@@ -1,31 +1,19 @@
-using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StreamFlow.Configuration;
 using StreamFlow.Outbox;
 using StreamFlow.RabbitMq.Connection;
+using StreamFlow.RabbitMq.Hosting;
 using StreamFlow.RabbitMq.Outbox;
+using StreamFlow.RabbitMq.Publisher;
 using StreamFlow.RabbitMq.Server;
-using StreamFlow.RabbitMq.Server.Hosting;
 
 namespace StreamFlow.RabbitMq
 {
     public static class StreamFlowBuilderExtensions
     {
-        public static IStreamFlowTransport UsingRabbitMq(this IStreamFlowTransport builder, Action<IStreamFlowRabbitMq> configure)
+        public static IStreamFlowTransport UseRabbitMq(this IStreamFlowTransport builder, Action<IStreamFlowRabbitMq> configure)
         {
-            builder.Services.TryAddSingleton<IRabbitMqConventions, RabbitMqConventions>();
-            builder.Services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
-            builder.Services.AddScoped<IPublisher, RabbitMqPublisher>();
-            builder.Services.AddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
-            builder.Services.TryAddScoped<ILoggerScopeStateFactory, LoggerScopeStateFactory>();
-            builder.Services.AddSingleton<IRabbitMqMetrics, NoRabbitMqMetrics>();
-            builder.Services.AddSingleton<IRabbitMqChannelPool, RabbitMqChannelPool>();
-            builder.Services.AddSingleton(new RabbitMqChannelPoolOptions
-            {
-                MaxPoolSize = 0,    // unlimited
-            });
-
             var rabbitMq = new StreamFlowRabbitMq(builder.Services, builder.Options);
 
             configure(rabbitMq);
@@ -37,25 +25,46 @@ namespace StreamFlow.RabbitMq
     public interface IStreamFlowRabbitMq
     {
         IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/");
-        IStreamFlowRabbitMq StartConsumerHostedService();
+        IStreamFlowRabbitMq Connection(string[] hostNames, string userName, string password, string virtualHost = "/");
+        IStreamFlowRabbitMq EnableConsumerHost();
         IStreamFlowRabbitMq WithMetricsProvider<TMetrics>() where TMetrics : class, IRabbitMqMetrics;
-        IStreamFlowRabbitMq WithPublisherChannelPoolOptions(RabbitMqChannelPoolOptions options);
+        IStreamFlowRabbitMq WithPublisherOptions(Action<RabbitMqPublisherOptions> options);
     }
 
     internal class StreamFlowRabbitMq: IStreamFlowRabbitMq
     {
         private readonly IServiceCollection _services;
         private readonly StreamFlowOptions _options;
+        private readonly RabbitMqPublisherOptions _publisherOptions;
 
         public StreamFlowRabbitMq(IServiceCollection services, StreamFlowOptions options)
         {
             _services = services;
             _options = options;
+
+            services.TryAddSingleton<IRabbitMqConventions, RabbitMqConventions>();
+            services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
+            services.AddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
+            services.TryAddScoped<ILoggerScopeStateFactory, LoggerScopeStateFactory>();
+            services.AddSingleton<IRabbitMqMetrics, NoRabbitMqMetrics>();
+            
+            services.AddScoped<IPublisher, RabbitMqPublisher>();
+            services.AddSingleton<IRabbitMqPublisherChannel, RabbitMqPublisherChannel>();
+            services.AddSingleton<IRabbitMqPublisherBus, RabbitMqPublisherBus>();
+
+            _publisherOptions = new RabbitMqPublisherOptions();
+            services.AddSingleton(_publisherOptions);
         }
 
         public IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/")
         {
-            _services.AddSingleton<IRabbitMqConnection>(new RabbitMqConnection(hostName, userName, password, virtualHost, _options.ServiceId));
+            return Connection(new[] {hostName}, userName, password, virtualHost);
+        }
+
+        public IStreamFlowRabbitMq Connection(string[] hostNames, string userName, string password, string virtualHost = "/")
+        {
+            _services.AddSingleton<IRabbitMqConnection>(new RabbitMqConnection(hostNames, userName, password, virtualHost, _options.ServiceId));
+            _services.AddSingleton<IRabbitMqPublisherConnection, RabbitMqPublisherConnection>();
             _services.AddSingleton<IRabbitMqServer, RabbitMqServer>();
             _services.AddSingleton<IRabbitMqServerController, RabbitMqServerController>();
             _services.AddTransient<IRabbitMqErrorHandler, RabbitMqErrorHandler>();
@@ -63,9 +72,9 @@ namespace StreamFlow.RabbitMq
             return this;
         }
 
-        public IStreamFlowRabbitMq StartConsumerHostedService()
+        public IStreamFlowRabbitMq EnableConsumerHost()
         {
-            _services.AddHostedService<RabbitMqHostedService>();
+            _services.AddHostedService<RabbitMqConsumerHostedService>();
 
             return this;
         }
@@ -78,10 +87,14 @@ namespace StreamFlow.RabbitMq
             return this;
         }
 
-        public IStreamFlowRabbitMq WithPublisherChannelPoolOptions(RabbitMqChannelPoolOptions options)
+        public IStreamFlowRabbitMq WithPublisherOptions(Action<RabbitMqPublisherOptions> options)
         {
-            var descriptor = new ServiceDescriptor(typeof(RabbitMqChannelPoolOptions), _ => options, ServiceLifetime.Singleton);
-            _services.Replace(descriptor);
+            options?.Invoke(_publisherOptions);
+
+            if (_publisherOptions.IsPublisherHostEnabled)
+            {
+                _services.AddHostedService<RabbitMqPublisherHostedService>();
+            }
 
             return this;
         }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -10,7 +11,7 @@ namespace StreamFlow.RabbitMq.Server
 {
     public interface IRabbitMqServer
     {
-        void Start(IConsumerRegistration consumerRegistration, CancellationToken cancellationToken);
+        Task Start(IConsumerRegistration consumerRegistration, TimeSpan timeout, CancellationToken cancellationToken);
         void Stop();
     }
 
@@ -61,7 +62,7 @@ namespace StreamFlow.RabbitMq.Server
             _logger.LogWarning(e.Exception, "Connection: Callback Exception");
         }
 
-        public void Start(IConsumerRegistration consumerRegistration, CancellationToken cancellationToken)
+        public async Task Start(IConsumerRegistration consumerRegistration, TimeSpan timeout, CancellationToken cancellationToken)
         {
             var requestType = consumerRegistration.RequestType;
             var consumerType = consumerRegistration.ConsumerType;
@@ -69,6 +70,29 @@ namespace StreamFlow.RabbitMq.Server
             var defaults = consumerRegistration.Default;
 
             var connection = _connection.Value;
+
+            if (!connection.IsOpen)
+            {
+                var timer = Stopwatch.StartNew();
+                var counter = 0;
+                while (!connection.IsOpen)
+                {
+                    counter += 1;
+
+                    if (timeout != Timeout.InfiniteTimeSpan && timeout > timer.Elapsed)
+                    {
+                        throw new Exception($"Unable to start consumer as connection was not open after {timer.Elapsed}");
+                    }
+
+                    // ~ every 30 seconds
+                    if (counter % 6 == 0)
+                    {
+                        _logger.LogWarning("RabbitMQ connection is still not ready after {Duration}", timer.Elapsed);
+                    }
+
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                }
+            }
 
             var exchange = _conventions.GetExchangeName(requestType);
             var queue = _conventions.GetQueueName(requestType, consumerType, consumerGroup);
@@ -93,7 +117,7 @@ namespace StreamFlow.RabbitMq.Server
                 var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey);
 
                 var controller = new RabbitMqConsumerController(_services, consumerRegistration, consumerInfo, connection, _logger, cancellationToken);
-                controller.Initialize();
+                controller.Start();
 
                 _consumerControllers.Add(controller);
             }
@@ -178,7 +202,7 @@ namespace StreamFlow.RabbitMq.Server
             catch (OperationInterruptedException e)
             {
                 // 406: PRECONDITION_FAILED, exchange exists, but with different properties
-                if (e.ShutdownReason?.ReplyCode != 406)
+                if (e.ShutdownReason?.ReplyCode != Constants.PreconditionFailed)
                 {
                     _logger.LogError(e, "Unable to declare exchange [{ExchangeName}]", exchange);
                     throw;
@@ -201,11 +225,8 @@ namespace StreamFlow.RabbitMq.Server
             var arguments = queueOptions?.Arguments;
             var quorum = queueOptions?.QuorumOptions ?? defaults?.QuorumOptions ?? new QueueQuorumOptions {Enabled = true};
 
-            if (quorum.Enabled)
+            if (quorum.Enabled && !autoDelete && !exclusive)
             {
-                autoDelete = false;
-                exclusive = false;
-
                 arguments ??= new Dictionary<string, object>();
                 arguments.Add("x-queue-type", "quorum");
 
@@ -234,7 +255,7 @@ namespace StreamFlow.RabbitMq.Server
             catch (OperationInterruptedException e)
             {
                 // 406: PRECONDITION_FAILED, queue exists, but with different properties
-                if (e.ShutdownReason?.ReplyCode != 406)
+                if (e.ShutdownReason?.ReplyCode != Constants.PreconditionFailed)
                 {
                     _logger.LogError(e, "Unable to declare queue [{QueueName}]. Queue options = {@QueueOptions}.", queue, queueOptions);
                     throw;
@@ -249,7 +270,7 @@ namespace StreamFlow.RabbitMq.Server
             }
         }
 
-        private void TryCreateQueueAndExchangeBinding(string exchange, string queue, string routingKey, IModel? channel)
+        private void TryCreateQueueAndExchangeBinding(string exchange, string queue, string routingKey, IModel channel)
         {
             try
             {
@@ -262,7 +283,7 @@ namespace StreamFlow.RabbitMq.Server
             catch (OperationInterruptedException e)
             {
                 // 406: PRECONDITION_FAILED, binding exists, but with different properties
-                if (e.ShutdownReason?.ReplyCode != 406)
+                if (e.ShutdownReason?.ReplyCode != Constants.PreconditionFailed)
                 {
                     _logger.LogError(e,
                         "Unable to bind exchange [{ExchangeName}] to queue [{QueueName}] using routing key [{RoutingKey}].",

@@ -1,11 +1,10 @@
-using System;
 using Prometheus;
 
 namespace StreamFlow.RabbitMq.Prometheus
 {
     public class PrometheusRabbitMqMetrics: IRabbitMqMetrics
     {
-        private readonly Histogram _messagesPublishedHistogram = Metrics.CreateHistogram(
+        private readonly Histogram _publishingHistogram = Metrics.CreateHistogram(
             "streamflow_messages_published",
             "Messages published",
             new HistogramConfiguration
@@ -13,6 +12,11 @@ namespace StreamFlow.RabbitMq.Prometheus
                 LabelNames = new[] { "exchange" },
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 16)
             });
+
+        private readonly Counter _publishingErrorCounter = Metrics.CreateCounter(
+            "streamflow_messages_publishing_errors",
+            "Message publishing errors",
+            new CounterConfiguration {LabelNames = new[] {"exchange"}});
 
         private readonly Histogram _messageConsumerHistogram = Metrics.CreateHistogram(
             "streamflow_messages_consumed",
@@ -26,20 +30,31 @@ namespace StreamFlow.RabbitMq.Prometheus
         private readonly Counter _messageConsumerErrorCounter = Metrics.CreateCounter(
             "streamflow_messages_consumed_errors",
             "Message consumption errors",
-            new CounterConfiguration { LabelNames = new[] { "exchange", "queue" } });
+            new CounterConfiguration {LabelNames = new[] {"exchange", "queue"}});
 
-        private readonly Gauge _publisherChannelPoolSize = Metrics.CreateGauge(
-            "streamflow_publisher_channel_pool_size",
-            "Publisher channel pool size");
+        private readonly Counter _busPublishingCounter = Metrics.CreateCounter(
+            "streamflow_messages_bus_publishing",
+            "Message bus publishing errors");
 
-        public IDisposable MessageInPublishing(string exchangeName)
+        private readonly Counter _busPublishingErrorCounter = Metrics.CreateCounter(
+            "streamflow_messages_bus_publishing_errors",
+            "Message bus publishing errors");
+
+        public IDisposable Publishing(string exchangeName)
         {
-            return _messagesPublishedHistogram
+            return _publishingHistogram
                 .Labels(exchangeName)
                 .NewTimer();
         }
 
-        public IDisposable ConsumerInProgress(string exchangeName, string queue)
+        public void PublishingError(string exchangeName)
+        {
+            _publishingErrorCounter
+                .Labels(exchangeName)
+                .Inc();
+        }
+
+        public IDisposable Consuming(string exchangeName, string queue)
         {
             return _messageConsumerHistogram
                 .Labels(exchangeName, queue)
@@ -53,9 +68,14 @@ namespace StreamFlow.RabbitMq.Prometheus
                 .Inc();
         }
 
-        public void PublisherChannelPoolSize(int poolSize)
+        public void BusPublishing()
         {
-            _publisherChannelPoolSize.Set(poolSize);
+            _busPublishingCounter.Inc();
+        }
+
+        public void BusPublishingError()
+        {
+            _busPublishingErrorCounter.Inc();
         }
     }
 }

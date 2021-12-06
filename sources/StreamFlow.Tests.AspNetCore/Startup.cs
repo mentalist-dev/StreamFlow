@@ -3,6 +3,8 @@ using Prometheus;
 using StreamFlow.RabbitMq;
 using StreamFlow.RabbitMq.Connection;
 using StreamFlow.RabbitMq.Prometheus;
+using StreamFlow.RabbitMq.Publisher;
+using StreamFlow.RabbitMq.Server;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.AspNetCore.Database;
 
@@ -37,15 +39,14 @@ namespace StreamFlow.Tests.AspNetCore
             services.AddStreamFlow(streamFlowOptions, transport =>
             {
                 transport
-                    .UsingRabbitMq(mq => mq
+                    .UseRabbitMq(mq => mq
                         .Connection("localhost", "guest", "guest")
-                        .StartConsumerHostedService()
+                        .EnableConsumerHost()
                         .WithPrometheusMetrics()
-                        .WithPublisherChannelPoolOptions(new RabbitMqChannelPoolOptions
-                        {
-                            MaxPoolSize = 10,
-                            ConfirmationType = ConfirmationType.Transactional
-                        })
+                        .WithPublisherOptions(publisher => publisher
+                            .EnablePublisherTransactions()
+                            .EnablePublisherHost()
+                        )
                     )
                     /*
                     .WithOutboxSupport(outbox =>
@@ -88,7 +89,7 @@ namespace StreamFlow.Tests.AspNetCore
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IPublisher publisher)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IRabbitMqPublisherBus bus, IHostApplicationLifetime lifetime)
         {
             if (env.IsDevelopment())
             {
@@ -115,12 +116,46 @@ namespace StreamFlow.Tests.AspNetCore
                 endpoints.MapMetrics();
             });
 
+            Task.Factory.StartNew(() => ChaosEngineering(bus, lifetime.ApplicationStopping), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+
             /*
             Task.Factory.StartNew(() => publisher.PublishAsync(
                 new PingRequest { Timestamp = DateTime.UtcNow },
                 new PublishOptions { PublisherConfirmsEnabled = true })
             );
             */
+        }
+
+        private async Task ChaosEngineering(IRabbitMqPublisherBus bus, CancellationToken cancellationToken)
+        {
+            var counter = 0;
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                counter += 1;
+
+                bus.Publish(new PingRequest
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Message = counter.ToString()
+                });
+;
+                if (counter % 20 == 0 && RabbitMqConsumer.Channels.Count > 0)
+                {
+                    Console.WriteLine("Killing channel!");
+                    foreach (var item in RabbitMqConsumer.Channels)
+                    {
+                        var channel = item.Value;
+                        if (channel.IsOpen)
+                        {
+                            channel.BasicNack(123455, false, false);
+                            break;
+                        }
+                    }
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }
         }
     }
 
@@ -132,13 +167,14 @@ namespace StreamFlow.Tests.AspNetCore
     public class PingRequest: IDomainEvent
     {
         public DateTime Timestamp { get; set; }
+        public string Message { get; set; }
     }
 
     public class PingRequestConsumer : IConsumer<PingRequest>
     {
         public Task Handle(IMessage<PingRequest> message, CancellationToken cancellationToken)
         {
-            Console.WriteLine(message.Body.Timestamp);
+            Console.WriteLine(message.Body.Timestamp + " " + message.Body.Message);
             // throw new Exception("Unable to handle!");
             return Task.CompletedTask;
         }

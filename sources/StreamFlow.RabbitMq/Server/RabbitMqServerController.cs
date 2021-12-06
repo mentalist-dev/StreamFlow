@@ -4,7 +4,7 @@ namespace StreamFlow.RabbitMq.Server
 {
     public interface IRabbitMqServerController
     {
-        Task StartAsync(CancellationToken cancellationToken);
+        Task StartAsync(TimeSpan timeout, CancellationToken cancellationToken);
         Task StopAsync(CancellationToken cancellationToken);
     }
 
@@ -19,14 +19,14 @@ namespace StreamFlow.RabbitMq.Server
             _registrations = registrations;
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {
             foreach (var consumer in _registrations.Consumers)
             {
-                _server.Start(consumer, cancellationToken);
+                await _server
+                    .Start(consumer, timeout, cancellationToken)
+                    .ConfigureAwait(false);
             }
-
-            return Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

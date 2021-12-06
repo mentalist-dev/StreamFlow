@@ -1,9 +1,7 @@
-using System;
-
 namespace StreamFlow.Outbox.Entities
 {
     public class OutboxLock
     {
-        public string OutboxLockId { get; set; }
+        public string? OutboxLockId { get; set; }
     }
 }

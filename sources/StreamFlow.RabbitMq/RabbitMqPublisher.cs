@@ -1,36 +1,89 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
-using RabbitMQ.Client.Events;
+using RabbitMQ.Client;
 using StreamFlow.Pipes;
 using StreamFlow.RabbitMq.Connection;
 
 namespace StreamFlow.RabbitMq
 {
-    public class RabbitMqPublisher : IPublisher
+    public class RabbitMqPublisher : IPublisher, IDisposable
     {
+        private readonly object _lock = new();
         private readonly IServiceProvider _services;
         private readonly IStreamFlowPublisherPipe _pipe;
+        private readonly IRabbitMqPublisherConnection _connection;
+        private readonly IMessageSerializer _messageSerializer;
         private readonly IRabbitMqConventions _conventions;
         private readonly IRabbitMqMetrics _metrics;
-        private readonly IMessageSerializer _messageSerializer;
-        private readonly IRabbitMqChannelPool _channels;
         private readonly ILogger<RabbitMqPublisher> _logger;
+        private readonly Func<IMessageContext, PublishRequest, Task> _publish;
+
+        private RabbitMqChannel? _channel;
 
         public RabbitMqPublisher(IServiceProvider services
             , IStreamFlowPublisherPipe pipe
+            , IRabbitMqPublisherConnection connection
             , IMessageSerializer messageSerializer
-            , IRabbitMqChannelPool channels
             , IRabbitMqConventions conventions
             , IRabbitMqMetrics metrics
             , ILogger<RabbitMqPublisher> logger)
         {
             _services = services;
+            _pipe = pipe;
+            _connection = connection;
+            _messageSerializer = messageSerializer;
             _conventions = conventions;
             _metrics = metrics;
-            _pipe = pipe;
-            _messageSerializer = messageSerializer;
-            _channels = channels;
             _logger = logger;
+
+            _publish = (message, request) =>
+            {
+                var options = request.Options;
+                var waitForConfirmation = options?.WaitForConfirmation ?? false;
+                var waitForConfirmationTimeout = options?.WaitForConfirmationTimeout;
+
+                var isMandatory = request.IsMandatory;
+
+                if (logger.IsEnabled(LogLevel.Debug))
+                {
+                    logger.LogDebug(
+                        "Publishing message to exchange [{ExchangeName}] using routing key [{RoutingKey}] with CorrelationId [{CorrelationId}]",
+                        message.Exchange, message.RoutingKey, message.CorrelationId);
+                }
+
+                var channel = GetChannel();
+                request.Response = channel.Publish(message, isMandatory, waitForConfirmation, waitForConfirmationTimeout);
+
+                return Task.CompletedTask;
+            };
+        }
+
+        public void Dispose()
+        {
+            var channel = _channel;
+            if (channel != null)
+            {
+                try
+                {
+                    if (channel.IsOpen)
+                    {
+                        channel.Close(Constants.ReplySuccess, "RabbitMqPublisherChannel disposed.");
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.LogWarning(e, "Unable to close publisher channel");
+                }
+
+                try
+                {
+                    channel.Dispose();
+                }
+                catch (Exception e)
+                {
+                    _logger.LogWarning(e, "Unable to dispose publisher channel");
+                }
+            }
         }
 
         public async Task<PublishResponse> PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T: class
@@ -43,149 +96,94 @@ namespace StreamFlow.RabbitMq
                 exchange = _conventions.GetExchangeName(message.GetType());
             }
 
-            using var _ = _metrics.MessageInPublishing(exchange);
+            using var _ = _metrics.Publishing(exchange);
 
-            var routingKey = options?.RoutingKey;
-            if (string.IsNullOrWhiteSpace(routingKey))
-            {
-                routingKey = "#";
-            }
-
-            var isMandatory = options?.IsMandatory ?? false;
-
-            ReadOnlyMemory<byte> body;
-
-            if (message is byte[] buffer)
-            {
-                body = buffer;
-            }
-            else if (message is ReadOnlyMemory<byte> memoryBuffer)
-            {
-                body = memoryBuffer;
-            }
-            else if (message is string text)
-            {
-                body = Encoding.UTF8.GetBytes(text);
-            }
-            else
-            {
-                body = _messageSerializer.Serialize(message);
-            }
-
-            var contentType = _messageSerializer.GetContentType<T>();
-
-            var correlationId = options?.CorrelationId;
-            if (string.IsNullOrWhiteSpace(correlationId))
-            {
-                correlationId = Guid.NewGuid().ToString();
-            }
-
-            var context = new RabbitMqPublisherMessageContext(body)
-                .WithCorrelationId(correlationId)
-                .WithRoutingKey(routingKey)
-                .WithExchange(exchange)
-                .WithContentType(contentType)
-                .SetHeader("SF:PublishTime", DateTime.UtcNow.ToString("O"));
-
-            var headers = options?.Headers;
-            if (headers != null)
-            {
-                foreach (var header in headers)
-                {
-                    context.SetHeader(header.Key, header.Value);
-                }
-            }
-
-            var request = new PublishRequest(options, isMandatory);
-
-            await _pipe
-                .ExecuteAsync(_services, context, GetPublishAction(request))
-                .ConfigureAwait(false);
-
-            return request.Response ?? new PublishResponse();
-        }
-
-        private Func<IMessageContext, Task> GetPublishAction(PublishRequest request)
-        {
-            return context =>
-            {
-                var options = request.Options;
-                var publisherConfirmsEnabled = options?.PublisherConfirmsEnabled ?? false;
-                var publisherConfirmsTimeout = options?.PublisherConfirmsTimeout;
-
-                bool isMandatory = request.IsMandatory;
-
-                request.Response = Publish(context, isMandatory, publisherConfirmsEnabled, publisherConfirmsTimeout);
-
-                return Task.CompletedTask;
-            };
-        }
-
-        private PublishResponse Publish(IMessageContext message, bool isMandatory, bool enablePublisherConfirms, TimeSpan? publisherConfirmsTimeout)
-        {
-            var model = _channels.Get();
-            var subscribedEvents = false;
-            var response = new PublishResponse();
             try
             {
-                var properties = model.Channel.CreateBasicProperties();
-
-                message.MapTo(properties);
-
-                _logger.LogDebug(
-                    "Publishing message to exchange [{ExchangeName}] using routing key [{RoutingKey}] with CorrelationId [{CorrelationId}]",
-                    message.Exchange, message.RoutingKey, message.CorrelationId);
-
-                if (model.Confirmation == ConfirmationType.PublisherConfirms)
+                var routingKey = options?.RoutingKey;
+                if (string.IsNullOrWhiteSpace(routingKey))
                 {
-                    response.Sequence(model.Channel.NextPublishSeqNo);
-                    if (enablePublisherConfirms)
+                    routingKey = "#";
+                }
+
+                var isMandatory = options?.IsMandatory ?? false;
+
+                ReadOnlyMemory<byte> body;
+
+                if (message is byte[] buffer)
+                {
+                    body = buffer;
+                }
+                else if (message is ReadOnlyMemory<byte> memoryBuffer)
+                {
+                    body = memoryBuffer;
+                }
+                else if (message is string text)
+                {
+                    body = Encoding.UTF8.GetBytes(text);
+                }
+                else
+                {
+                    body = _messageSerializer.Serialize(message);
+                }
+
+                var contentType = _messageSerializer.GetContentType<T>();
+
+                var correlationId = options?.CorrelationId;
+                if (string.IsNullOrWhiteSpace(correlationId))
+                {
+                    correlationId = Guid.NewGuid().ToString();
+                }
+
+                var context = new RabbitMqPublisherMessageContext(body)
+                    .WithCorrelationId(correlationId)
+                    .WithRoutingKey(routingKey)
+                    .WithExchange(exchange)
+                    .WithContentType(contentType)
+                    .SetHeader("SF:PublishTime", DateTime.UtcNow.ToString("O"));
+
+                var headers = options?.Headers;
+                if (headers != null)
+                {
+                    foreach (var header in headers)
                     {
-                        subscribedEvents = true;
-                        model.Channel.BasicAcks += OnAcknowledge;
-                        model.Channel.BasicNacks += OnReject;
+                        context.SetHeader(header.Key, header.Value);
                     }
                 }
 
-                model.Channel.BasicPublish(message.Exchange, message.RoutingKey, isMandatory, properties, message.Content);
+                var request = new PublishRequest(options, isMandatory);
 
-                if (enablePublisherConfirms)
+                await _pipe
+                    .ExecuteAsync(_services, context, msg => _publish(msg, request))
+                    .ConfigureAwait(false);
+
+                return request.Response ?? new PublishResponse(null);
+            }
+            catch (Exception e)
+            {
+                _metrics.PublishingError(exchange);
+                _logger.LogError(e, "Unable to publish message to {Exchange}", exchange);
+                throw;
+            }
+        }
+
+        private RabbitMqChannel GetChannel()
+        {
+            if (_channel == null)
+            {
+                lock (_lock)
                 {
-                    model.Confirm(publisherConfirmsTimeout);
+                    _channel ??= _connection.CreateChannel();
                 }
             }
-            finally
-            {
-                if (subscribedEvents)
-                {
-                    model.Channel.BasicAcks -= OnAcknowledge;
-                    model.Channel.BasicNacks -= OnReject;
-                }
 
-                _channels.Return(model);
-            }
-
-            void OnAcknowledge(object? sender, BasicAckEventArgs args)
-            {
-                var deliveryTag = args.DeliveryTag;
-                var multiple = args.Multiple;
-                response.Acknowledged(deliveryTag, multiple);
-            }
-
-            void OnReject(object? sender, BasicNackEventArgs args)
-            {
-                var deliveryTag = args.DeliveryTag;
-                var multiple = args.Multiple;
-                response.Rejected(deliveryTag, multiple);
-            }
-
-            return response;
+            return _channel;
         }
 
         private class PublishRequest
         {
-            public PublishOptions? Options { get; set; }
-            public bool IsMandatory { get; set; }
+            public PublishOptions? Options { get; }
+            public bool IsMandatory { get; }
 
             public PublishResponse? Response { get; set; }
 
