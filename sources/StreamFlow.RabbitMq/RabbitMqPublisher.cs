@@ -54,17 +54,19 @@ namespace StreamFlow.RabbitMq
                         message.Exchange, message.RoutingKey, message.CorrelationId);
                 }
 
-                _metrics.PublishingEvent(message.Exchange ?? string.Empty, "channel:prepare", timer.Elapsed);
+                var exchangeName = message.Exchange ?? string.Empty;
+
+                _metrics.PublishingEvent(exchangeName, "channel:prepare", timer.Elapsed);
                 timer.Restart();
 
-                var channel = GetChannel();
+                var channel = GetChannel(exchangeName, _metrics);
 
-                _metrics.PublishingEvent(message.Exchange ?? string.Empty, "channel:get", timer.Elapsed);
+                _metrics.PublishingEvent(exchangeName, "channel:get", timer.Elapsed);
                 timer.Restart();
 
                 request.Response = channel.Publish(message, isMandatory, waitForConfirmation, waitForConfirmationTimeout, _metrics);
 
-                _metrics.PublishingEvent(message.Exchange ?? string.Empty, "channel:publish", timer.Elapsed);
+                _metrics.PublishingEvent(exchangeName, "channel:publish", timer.Elapsed);
                 timer.Stop();
 
                 return Task.CompletedTask;
@@ -194,13 +196,21 @@ namespace StreamFlow.RabbitMq
             }
         }
 
-        private RabbitMqChannel GetChannel()
+        private RabbitMqChannel GetChannel(string exchangeName, IRabbitMqMetrics metrics)
         {
             if (_channel == null)
             {
+                var timer = Stopwatch.StartNew();
                 lock (_lock)
                 {
-                    _channel ??= _connection.CreateChannel();
+                    metrics.PublishingEvent(exchangeName, "channel:lock", timer.Elapsed);
+                    timer.Restart();
+
+                    if (_channel == null)
+                    {
+                        _channel = _connection.CreateChannel();
+                        metrics.PublishingEvent(exchangeName, "channel:create", timer.Elapsed);
+                    }
                 }
             }
 
