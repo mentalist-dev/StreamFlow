@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Channels;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace StreamFlow.RabbitMq.Connection;
 
-public class RabbitMqChannel : IDisposable
+internal class RabbitMqChannel : IDisposable
 {
     private readonly ConcurrentQueue<BasicAckEventArgs> _acknowledged = new();
     private readonly ConcurrentQueue<BasicNackEventArgs> _rejected = new();
@@ -63,8 +64,10 @@ public class RabbitMqChannel : IDisposable
         Channel.Dispose();
     }
 
-    public PublishResponse Publish(IMessageContext message, bool isMandatory, bool waitForConfirmation, TimeSpan? waitForConfirmationTimeout)
+    public PublishResponse Publish(IMessageContext message, bool isMandatory, bool waitForConfirmation, TimeSpan? waitForConfirmationTimeout, IRabbitMqMetrics metrics)
     {
+        var timer = Stopwatch.StartNew();
+
         var response = new PublishResponse(
             Confirmation == ConfirmationType.PublisherConfirms ? Channel.NextPublishSeqNo : null
         );
@@ -79,17 +82,36 @@ public class RabbitMqChannel : IDisposable
 
         var body = message.Content;
 
+        metrics.PublishingEvent(exchange, "channel:properties", timer.Elapsed);
+        timer.Restart();
+
         Channel.BasicPublish(exchange, routingKey, isMandatory, properties, body);
+
+        metrics.PublishingEvent(exchange, "channel:basic-publish", timer.Elapsed);
+        timer.Restart();
+
         Commit(waitForConfirmation, waitForConfirmationTimeout);
 
-        while (_acknowledged.TryDequeue(out var ack))
-        {
-            response.Acknowledged(ack.DeliveryTag, ack.Multiple);
-        }
+        metrics.PublishingEvent(exchange, "channel:commit", timer.Elapsed);
+        timer.Restart();
 
-        while (_rejected.TryDequeue(out var nack))
+        if (Confirmation == ConfirmationType.PublisherConfirms)
         {
-            response.Rejected(nack.DeliveryTag, nack.Multiple);
+            while (_acknowledged.TryDequeue(out var ack))
+            {
+                response.Acknowledged(ack.DeliveryTag, ack.Multiple);
+            }
+
+            metrics.PublishingEvent(exchange, "channel:ack-collect", timer.Elapsed);
+            timer.Restart();
+
+            while (_rejected.TryDequeue(out var nack))
+            {
+                response.Rejected(nack.DeliveryTag, nack.Multiple);
+            }
+
+            metrics.PublishingEvent(exchange, "channel:nack-collect", timer.Elapsed);
+            timer.Restart();
         }
 
         return response;

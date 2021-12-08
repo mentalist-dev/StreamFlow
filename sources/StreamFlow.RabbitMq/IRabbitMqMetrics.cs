@@ -2,10 +2,11 @@ namespace StreamFlow.RabbitMq
 {
     public interface IRabbitMqMetrics
     {
-        IDisposable? Publishing(string exchangeName);
+        IDurationMetric? Publishing(string exchangeName);
+        void PublishingEvent(string exchangeName, string eventName, TimeSpan duration);
         void PublishingError(string exchangeName);
 
-        IDisposable? Consuming(string exchangeName, string queue);
+        IDurationMetric? Consuming(string exchangeName, string queue);
         void MessageConsumerError(string exchangeName, string queue);
 
         void BusPublishing();
@@ -14,16 +15,20 @@ namespace StreamFlow.RabbitMq
 
     internal class NoRabbitMqMetrics : IRabbitMqMetrics
     {
-        public IDisposable? Publishing(string exchangeName)
+        public IDurationMetric? Publishing(string exchangeName)
         {
             return null;
+        }
+
+        public void PublishingEvent(string exchangeName, string eventName, TimeSpan duration)
+        {
         }
 
         public void PublishingError(string exchangeName)
         {
         }
 
-        public IDisposable? Consuming(string exchangeName, string queue)
+        public IDurationMetric? Consuming(string exchangeName, string queue)
         {
             return null;
         }
@@ -39,5 +44,10 @@ namespace StreamFlow.RabbitMq
         public void BusPublishingError()
         {
         }
+    }
+
+    public interface IDurationMetric : IDisposable
+    {
+        void Complete();
     }
 }

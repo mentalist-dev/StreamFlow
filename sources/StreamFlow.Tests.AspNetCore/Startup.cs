@@ -1,10 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
 using StreamFlow.RabbitMq;
-using StreamFlow.RabbitMq.Connection;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.RabbitMq.Publisher;
-using StreamFlow.RabbitMq.Server;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.AspNetCore.Database;
 

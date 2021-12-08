@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Prometheus;
 
 namespace StreamFlow.RabbitMq.Prometheus
@@ -9,7 +10,16 @@ namespace StreamFlow.RabbitMq.Prometheus
             "Messages published",
             new HistogramConfiguration
             {
-                LabelNames = new[] { "exchange" },
+                LabelNames = new[] {"exchange", "state"},
+                Buckets = Histogram.ExponentialBuckets(0.001, 2, 16)
+            });
+
+        private readonly Histogram _publishingEventsHistogram = Metrics.CreateHistogram(
+            "streamflow_messages_publishing_events",
+            "Events happened during publishing",
+            new HistogramConfiguration
+            {
+                LabelNames = new[] {"exchange", "event"},
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 16)
             });
 
@@ -23,7 +33,7 @@ namespace StreamFlow.RabbitMq.Prometheus
             "Messages consumed",
             new HistogramConfiguration
             {
-                LabelNames = new[] {"exchange", "queue"},
+                LabelNames = new[] {"exchange", "queue", "state"},
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 16)
             });
 
@@ -40,11 +50,16 @@ namespace StreamFlow.RabbitMq.Prometheus
             "streamflow_messages_bus_publishing_errors",
             "Message bus publishing errors");
 
-        public IDisposable Publishing(string exchangeName)
+        public IDurationMetric Publishing(string exchangeName)
         {
-            return _publishingHistogram
-                .Labels(exchangeName)
-                .NewTimer();
+            return new DurationMetric(_publishingHistogram, exchangeName);
+        }
+
+        public void PublishingEvent(string exchangeName, string eventName, TimeSpan duration)
+        {
+            _publishingEventsHistogram
+                .Labels(exchangeName, eventName)
+                .Observe(duration.TotalSeconds);
         }
 
         public void PublishingError(string exchangeName)
@@ -54,11 +69,9 @@ namespace StreamFlow.RabbitMq.Prometheus
                 .Inc();
         }
 
-        public IDisposable Consuming(string exchangeName, string queue)
+        public IDurationMetric Consuming(string exchangeName, string queue)
         {
-            return _messageConsumerHistogram
-                .Labels(exchangeName, queue)
-                .NewTimer();
+            return new DurationMetric(_messageConsumerHistogram, exchangeName, queue);
         }
 
         public void MessageConsumerError(string exchangeName, string queue)
@@ -76,6 +89,42 @@ namespace StreamFlow.RabbitMq.Prometheus
         public void BusPublishingError()
         {
             _busPublishingErrorCounter.Inc();
+        }
+    }
+
+    internal class DurationMetric : IDurationMetric
+    {
+        private readonly Histogram _histogram;
+        private readonly string[]? _labels;
+        private readonly Stopwatch _timer;
+        private bool _completed;
+
+        public DurationMetric(Histogram histogram, params string[]? labels)
+        {
+            _histogram = histogram;
+            _labels = labels;
+            _timer = Stopwatch.StartNew();
+        }
+
+        public void Dispose()
+        {
+            _timer.Stop();
+
+            var labelValues = new List<string>();
+            if (_labels != null)
+            {
+                labelValues.AddRange(_labels);
+            }
+            labelValues.Add(_completed ? "completed" : "failed");
+
+            _histogram
+                .Labels(labelValues.ToArray())
+                .Observe(_timer.Elapsed.TotalSeconds);
+        }
+
+        public void Complete()
+        {
+            _completed = true;
         }
     }
 }

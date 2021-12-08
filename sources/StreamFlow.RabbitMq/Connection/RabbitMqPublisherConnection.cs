@@ -4,7 +4,7 @@ using RabbitMQ.Client.Events;
 
 namespace StreamFlow.RabbitMq.Connection;
 
-public interface IRabbitMqPublisherConnection
+internal interface IRabbitMqPublisherConnection
 {
     RabbitMqPublisherOptions Options { get; }
     IConnection Get();

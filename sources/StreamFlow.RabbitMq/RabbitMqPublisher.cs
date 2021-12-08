@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -6,7 +7,7 @@ using StreamFlow.RabbitMq.Connection;
 
 namespace StreamFlow.RabbitMq
 {
-    public class RabbitMqPublisher : IPublisher, IDisposable
+    internal class RabbitMqPublisher : IPublisher, IDisposable
     {
         private readonly object _lock = new();
         private readonly IServiceProvider _services;
@@ -38,6 +39,8 @@ namespace StreamFlow.RabbitMq
 
             _publish = (message, request) =>
             {
+                var timer = Stopwatch.StartNew();
+
                 var options = request.Options;
                 var waitForConfirmation = options?.WaitForConfirmation ?? false;
                 var waitForConfirmationTimeout = options?.WaitForConfirmationTimeout;
@@ -51,8 +54,18 @@ namespace StreamFlow.RabbitMq
                         message.Exchange, message.RoutingKey, message.CorrelationId);
                 }
 
+                _metrics.PublishingEvent(message.Exchange ?? string.Empty, "channel:prepare", timer.Elapsed);
+                timer.Restart();
+
                 var channel = GetChannel();
-                request.Response = channel.Publish(message, isMandatory, waitForConfirmation, waitForConfirmationTimeout);
+
+                _metrics.PublishingEvent(message.Exchange ?? string.Empty, "channel:get", timer.Elapsed);
+                timer.Restart();
+
+                request.Response = channel.Publish(message, isMandatory, waitForConfirmation, waitForConfirmationTimeout, _metrics);
+
+                _metrics.PublishingEvent(message.Exchange ?? string.Empty, "channel:publish", timer.Elapsed);
+                timer.Stop();
 
                 return Task.CompletedTask;
             };
@@ -96,10 +109,12 @@ namespace StreamFlow.RabbitMq
                 exchange = _conventions.GetExchangeName(message.GetType());
             }
 
-            using var _ = _metrics.Publishing(exchange);
+            using var duration = _metrics.Publishing(exchange);
+            var timer = Stopwatch.StartNew();
 
             try
             {
+
                 var routingKey = options?.RoutingKey;
                 if (string.IsNullOrWhiteSpace(routingKey))
                 {
@@ -127,6 +142,9 @@ namespace StreamFlow.RabbitMq
                     body = _messageSerializer.Serialize(message);
                 }
 
+                _metrics.PublishingEvent(exchange, "serialization", timer.Elapsed);
+                timer.Restart();
+
                 var contentType = _messageSerializer.GetContentType<T>();
 
                 var correlationId = options?.CorrelationId;
@@ -151,13 +169,23 @@ namespace StreamFlow.RabbitMq
                     }
                 }
 
+                _metrics.PublishingEvent(exchange, "message", timer.Elapsed);
+                timer.Restart();
+
                 var request = new PublishRequest(options, isMandatory);
 
                 await _pipe
                     .ExecuteAsync(_services, context, msg => _publish(msg, request))
                     .ConfigureAwait(false);
 
-                return request.Response ?? new PublishResponse(null);
+                var response = request.Response ?? new PublishResponse(null);
+
+                _metrics.PublishingEvent(exchange, "publish", timer.Elapsed);
+                timer.Stop();
+
+                duration?.Complete();
+
+                return response;
             }
             catch (Exception e)
             {
