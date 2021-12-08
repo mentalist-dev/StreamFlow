@@ -140,6 +140,7 @@ namespace StreamFlow.Tests.AspNetCore
                     Message = counter.ToString()
                 });
 ;
+                /*
                 if (counter % 20 == 0 && RabbitMqConsumer.Channels.Count > 0)
                 {
                     Console.WriteLine("Killing channel!");
@@ -153,6 +154,7 @@ namespace StreamFlow.Tests.AspNetCore
                         }
                     }
                 }
+                */
 
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }

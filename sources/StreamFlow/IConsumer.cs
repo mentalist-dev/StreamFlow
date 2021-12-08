@@ -1,6 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace StreamFlow
 {
     public interface IConsumer<in TRequest>

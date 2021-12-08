@@ -70,6 +70,11 @@ namespace StreamFlow.RabbitMq.Server
                 }
             };
 
+            channel.CallbackException += (sender, args) =>
+            {
+                _logger.LogWarning("Callback exception: {@Details}", args);
+            };
+
             _consumer = new AsyncEventingBasicConsumer(channel);
 
             Channels.TryAdd(Id, channel);

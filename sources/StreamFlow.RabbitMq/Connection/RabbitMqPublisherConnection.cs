@@ -78,17 +78,17 @@ internal class RabbitMqPublisherConnection: IRabbitMqPublisherConnection, IDispo
 
     private void OnPhysicalConnectionUnblocked(object? sender, EventArgs e)
     {
-        _logger.LogTrace("PublisherConnection: Unblocked");
+        _logger.LogWarning("PublisherConnection: Unblocked");
     }
 
     private void OnPhysicalConnectionShutdown(object? sender, ShutdownEventArgs e)
     {
-        _logger.LogDebug("PublisherConnection: Shutdown. Arguments: {ShutdownEventArs}.", e);
+        _logger.LogWarning("PublisherConnection: Shutdown. Arguments: {ShutdownEventArs}.", e);
     }
 
     private void OnPhysicalConnectionBlocked(object? sender, ConnectionBlockedEventArgs e)
     {
-        _logger.LogTrace("PublisherConnection: Blocked. Reason: {Reason}.", e.Reason);
+        _logger.LogWarning("PublisherConnection: Blocked. Reason: {Reason}.", e.Reason);
     }
 
     private void OnPhysicalConnectionCallbackException(object? sender, CallbackExceptionEventArgs e)
