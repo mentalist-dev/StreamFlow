@@ -19,6 +19,8 @@
     <FileVersion>5.0.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <LangVersion>latest</LangVersion>
+    <!--async methods without await -->
+    <WarningsAsErrors>CS4014;</WarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup>

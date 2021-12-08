@@ -114,7 +114,6 @@ namespace StreamFlow.RabbitMq
 
             try
             {
-
                 var routingKey = options?.RoutingKey;
                 if (string.IsNullOrWhiteSpace(routingKey))
                 {

@@ -180,6 +180,8 @@ namespace StreamFlow.RabbitMq.Server
                     .ConfigureAwait(false);
 
                 acknowledge = true;
+
+                progress?.Complete();
             }
             catch (OperationCanceledException e)
             {
