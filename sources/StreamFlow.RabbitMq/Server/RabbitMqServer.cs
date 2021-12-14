@@ -18,49 +18,20 @@ public interface IRabbitMqServer
 public class RabbitMqServer: IRabbitMqServer, IDisposable
 {
     private readonly IServiceProvider _services;
+    private readonly IRabbitMqConnection _connection;
     private readonly IRabbitMqConventions _conventions;
-    private readonly Lazy<IConnection> _connection;
     private readonly List<RabbitMqConsumerController> _consumerControllers = new();
     private readonly ILogger<RabbitMqConsumer> _logger;
+
+    private IConnection? _physicalConnection;
 
     public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, IRabbitMqConventions conventions, ILoggerFactory loggers)
     {
         _logger = loggers.CreateLogger<RabbitMqConsumer>();
 
         _services = services;
+        _connection = connection;
         _conventions = conventions;
-        _connection = new Lazy<IConnection>(() =>
-        {
-            _logger.LogWarning("Creating consumer RabbitMQ connection");
-            var physicalConnection = connection.Create(ConnectionType.Consumer);
-
-            physicalConnection.CallbackException += OnPhysicalConnectionCallbackException;
-            physicalConnection.ConnectionBlocked += OnPhysicalConnectionBlocked;
-            physicalConnection.ConnectionShutdown += OnPhysicalConnectionShutdown;
-            physicalConnection.ConnectionUnblocked += OnPhysicalConnectionUnblocked;
-
-            return physicalConnection;
-        });
-    }
-
-    private void OnPhysicalConnectionUnblocked(object? sender, EventArgs e)
-    {
-        _logger.LogWarning("Connection: Unblocked");
-    }
-
-    private void OnPhysicalConnectionShutdown(object? sender, ShutdownEventArgs e)
-    {
-        _logger.LogWarning("Connection: Shutdown. Arguments: {ShutdownEventArs}.", e);
-    }
-
-    private void OnPhysicalConnectionBlocked(object? sender, ConnectionBlockedEventArgs e)
-    {
-        _logger.LogWarning("Connection: Blocked. Reason: {Reason}.", e.Reason);
-    }
-
-    private void OnPhysicalConnectionCallbackException(object? sender, CallbackExceptionEventArgs e)
-    {
-        _logger.LogWarning(e.Exception, "Connection: Callback Exception");
     }
 
     public async Task Start(IConsumerRegistration consumerRegistration, TimeSpan timeout, CancellationToken cancellationToken)
@@ -70,30 +41,13 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         var consumerGroup = consumerRegistration.Options.ConsumerGroup;
         var defaults = consumerRegistration.Default;
 
-        var connection = _connection.Value;
+        _logger.LogInformation(
+            "Starting consumer registration {ConsumerType} for message {RequestType} in group {ConsumerGroup}",
+            consumerType, requestType, consumerGroup);
 
-        if (!connection.IsOpen)
-        {
-            var timer = Stopwatch.StartNew();
-            var counter = 0;
-            while (!connection.IsOpen)
-            {
-                counter += 1;
-
-                if (timeout != Timeout.InfiniteTimeSpan && timeout > timer.Elapsed)
-                {
-                    throw new Exception($"Unable to start consumer as connection was not open after {timer.Elapsed}");
-                }
-
-                // ~ every 30 seconds
-                if (counter % 6 == 0)
-                {
-                    _logger.LogWarning("RabbitMQ connection is still not ready after {Duration}", timer.Elapsed);
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-            }
-        }
+        var connection = await GetConnection(timeout, cancellationToken).ConfigureAwait(false);
+        if (connection == null)
+            return;
 
         var exchange = _conventions.GetExchangeName(requestType);
         var queue = _conventions.GetQueueName(requestType, consumerType, consumerGroup);
@@ -143,22 +97,124 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
 
         _consumerControllers.Clear();
 
-        if (_connection.IsValueCreated)
+        var connection = _physicalConnection;
+        if (connection != null)
         {
             try
             {
-                if (_connection.Value.IsOpen)
+                if (connection.IsOpen)
                 {
-                    _connection.Value.Close();
+                    connection.Close();
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unable to close connection");
             }
             finally
             {
-                _connection.Value.Dispose();
+                connection.Dispose();
             }
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private async Task<IConnection?> GetConnection(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var timer = Stopwatch.StartNew();
+        var counter = 0;
+
+        IConnection? connection = null;
+        try
+        {
+            while (connection == null && !cancellationToken.IsCancellationRequested)
+            {
+                counter += 1;
+                try
+                {
+                    connection = GetConnection();
+                }
+                catch
+                {
+                    connection = null;
+                }
+
+                if (connection != null)
+                    return connection;
+
+                if (timeout != Timeout.InfiniteTimeSpan && timeout > timer.Elapsed)
+                {
+                    break;
+                }
+
+                // ~ every 30 seconds
+                if (counter % 6 == 0)
+                {
+                    _logger.LogWarning("RabbitMQ consumer connection is not ready after {Duration}", timer.Elapsed);
+                }
+
+                await Task
+                    .Delay(TimeSpan.FromSeconds(5), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // 
+        }
+
+        if (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogError("Unable to open RabbitMQ connection. Check your configuration or increase server startup timeout. Giving up after {Duration}.", timer.Elapsed);
+        }
+
+        return connection;
+
+    }
+
+    private IConnection? GetConnection()
+    {
+        if (_physicalConnection == null)
+        {
+            lock (this)
+            {
+                if (_physicalConnection == null)
+                {
+                    var physicalConnection = _connection.Create(ConnectionType.Consumer);
+                    _logger.LogWarning("Successfully created RabbitMQ consumer connection");
+
+                    physicalConnection.CallbackException += OnPhysicalConnectionCallbackException;
+                    physicalConnection.ConnectionBlocked += OnPhysicalConnectionBlocked;
+                    physicalConnection.ConnectionShutdown += OnPhysicalConnectionShutdown;
+                    physicalConnection.ConnectionUnblocked += OnPhysicalConnectionUnblocked;
+
+                    _physicalConnection = physicalConnection;
+                }
+            }
+        }
+
+        return _physicalConnection;
+    }
+
+    private void OnPhysicalConnectionUnblocked(object? sender, EventArgs e)
+    {
+        _logger.LogWarning("Connection: Unblocked");
+    }
+
+    private void OnPhysicalConnectionShutdown(object? sender, ShutdownEventArgs e)
+    {
+        _logger.LogWarning("Connection: Shutdown. Arguments: {ShutdownEventArs}.", e);
+    }
+
+    private void OnPhysicalConnectionBlocked(object? sender, ConnectionBlockedEventArgs e)
+    {
+        _logger.LogWarning("Connection: Blocked. Reason: {Reason}.", e.Reason);
+    }
+
+    private void OnPhysicalConnectionCallbackException(object? sender, CallbackExceptionEventArgs e)
+    {
+        _logger.LogWarning(e.Exception, "Connection: Callback Exception");
     }
 
     private void TryCreateTopology(IConnection connection, StreamFlowDefaults? defaults, QueueOptions? queueOptions, string exchange, string queue, string routingKey)

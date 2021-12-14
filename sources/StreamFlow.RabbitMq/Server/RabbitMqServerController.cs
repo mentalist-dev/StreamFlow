@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using StreamFlow.Configuration;
 
 namespace StreamFlow.RabbitMq.Server
@@ -12,20 +13,29 @@ namespace StreamFlow.RabbitMq.Server
     {
         private readonly IRabbitMqServer _server;
         private readonly IConsumerRegistrations _registrations;
+        private readonly ILogger<RabbitMqServerController> _logger;
 
-        public RabbitMqServerController(IRabbitMqServer server, IConsumerRegistrations registrations)
+        public RabbitMqServerController(IRabbitMqServer server, IConsumerRegistrations registrations, ILogger<RabbitMqServerController> logger)
         {
             _server = server;
             _registrations = registrations;
+            _logger = logger;
         }
 
         public async Task StartAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {
             foreach (var consumer in _registrations.Consumers)
             {
-                await _server
-                    .Start(consumer, timeout, cancellationToken)
-                    .ConfigureAwait(false);
+                try
+                {
+                    await _server
+                        .Start(consumer, timeout, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Unable to start consumer {RequestType} for consumer {ConsumerType}", consumer.RequestType, consumer.ConsumerType);
+                }
             }
         }
 
