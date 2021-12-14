@@ -19,6 +19,7 @@ namespace StreamFlow.RabbitMq
         private readonly ILogger<RabbitMqPublisher> _logger;
         private readonly Func<IMessageContext, PublishRequest, Task> _publish;
 
+        private int _disposed;
         private RabbitMqChannel? _channel;
 
         public RabbitMqPublisher(IServiceProvider services
@@ -75,6 +76,10 @@ namespace StreamFlow.RabbitMq
 
         public void Dispose()
         {
+            var disposed = Interlocked.Increment(ref _disposed);
+            if (disposed > 1)
+                return;
+
             var channel = _channel;
             if (channel != null)
             {
@@ -99,9 +104,11 @@ namespace StreamFlow.RabbitMq
                     _logger.LogWarning(e, "Unable to dispose publisher channel");
                 }
             }
+
+            GC.SuppressFinalize(this);
         }
 
-        public async Task<PublishResponse> PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T: class
+        public async Task<PublishResponse> PublishAsync<T>(T message, PublishOptions? options = null) where T: class
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
 

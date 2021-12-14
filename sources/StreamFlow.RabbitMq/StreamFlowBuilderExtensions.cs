@@ -46,7 +46,7 @@ namespace StreamFlow.RabbitMq
             services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
             services.AddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
             services.TryAddScoped<ILoggerScopeStateFactory, LoggerScopeStateFactory>();
-            services.AddSingleton<IRabbitMqMetrics, NoRabbitMqMetrics>();
+            services.AddSingleton<IRabbitMqMetrics, RabbitMqNoOpMetrics>();
             
             services.AddScoped<IPublisher, RabbitMqPublisher>();
             services.AddSingleton<IRabbitMqPublisherChannel, RabbitMqPublisherChannel>();
@@ -65,6 +65,7 @@ namespace StreamFlow.RabbitMq
         {
             _services.AddSingleton<IRabbitMqConnection>(new RabbitMqConnection(hostNames, userName, password, virtualHost, _options.ServiceId));
             _services.AddSingleton<IRabbitMqPublisherConnection, RabbitMqPublisherConnection>();
+            _services.AddSingleton<IRabbitMqErrorHandlerConnection, RabbitMqErrorHandlerConnection>();
             _services.AddSingleton<IRabbitMqServer, RabbitMqServer>();
             _services.AddSingleton<IRabbitMqServerController, RabbitMqServerController>();
             _services.AddTransient<IRabbitMqErrorHandler, RabbitMqErrorHandler>();
@@ -94,6 +95,22 @@ namespace StreamFlow.RabbitMq
             if (_publisherOptions.IsPublisherHostEnabled)
             {
                 _services.AddHostedService<RabbitMqPublisherHostedService>();
+            }
+
+            if (_publisherOptions.PoolOptions != null)
+            {
+                _services.AddSingleton(_publisherOptions.PoolOptions);
+                _services.AddSingleton<RabbitMqPublisherPool>();
+
+                _services.AddSingleton<IRabbitMqPublisherPool>(p => p.GetRequiredService<RabbitMqPublisherPool>());
+                _services.AddSingleton<IRabbitMqPublisherPoolController>(p => p.GetRequiredService<RabbitMqPublisherPool>());
+
+                // this instance will be created by pool, so we need one new instance every time it is requested
+                _services.AddTransient<RabbitMqPublisher>();
+
+                // lets make IPublisher singleton, there is no need to be scoped here as we take publishers from singleton pool anyway
+                var descriptor = new ServiceDescriptor(typeof(IPublisher), typeof(RabbitMqPublisherWithPooling), ServiceLifetime.Singleton);
+                _services.Replace(descriptor);
             }
 
             return this;

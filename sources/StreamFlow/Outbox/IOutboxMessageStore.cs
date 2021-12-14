@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using StreamFlow.Outbox.Entities;
 
 namespace StreamFlow.Outbox
@@ -34,7 +30,7 @@ namespace StreamFlow.Outbox
                 ? _serializer.Deserialize<PublishOptions>(outboxMessage.Options)
                 : null;
 
-            return _publisher.PublishAsync(message, options, cancellationToken);
+            return _publisher.PublishAsync(message, options);
         }
 
         public Task<IAsyncDisposable?> StartLock(string key)

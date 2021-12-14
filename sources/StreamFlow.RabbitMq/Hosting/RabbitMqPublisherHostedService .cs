@@ -22,6 +22,8 @@ internal class RabbitMqPublisherHostedService : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        _logger.LogWarning("Starting RabbitMqPublisherHostedService");
+
         // ReSharper disable once MethodSupportsCancellation
         Task.Factory.StartNew(() => StartPublisherThread(cancellationToken));
         return Task.CompletedTask;
@@ -29,6 +31,7 @@ internal class RabbitMqPublisherHostedService : IHostedService
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        _logger.LogWarning("Stopping RabbitMqPublisherHostedService");
         _channel.Complete();
         return Task.CompletedTask;
     }
@@ -56,7 +59,7 @@ internal class RabbitMqPublisherHostedService : IHostedService
                     try
                     {
                         await publisher
-                            .PublishAsync(item.Message, item.Options, cancellationToken)
+                            .PublishAsync(item.Message, item.Options)
                             .ConfigureAwait(false);
 
                         published = true;

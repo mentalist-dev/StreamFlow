@@ -3,6 +3,8 @@ using Prometheus;
 using StreamFlow.RabbitMq;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.RabbitMq.Publisher;
+using StreamFlow.Tests.AspNetCore.Application.Errors;
+using StreamFlow.Tests.AspNetCore.Application.Ping;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.AspNetCore.Database;
 
@@ -10,12 +12,12 @@ namespace StreamFlow.Tests.AspNetCore
 {
     public class Startup
     {
+        private readonly IConfiguration _configuration;
+
         public Startup(IConfiguration configuration)
         {
-            Configuration = configuration;
+            _configuration = configuration;
         }
-
-        public IConfiguration Configuration { get; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
@@ -44,38 +46,18 @@ namespace StreamFlow.Tests.AspNetCore
                         .WithPublisherOptions(publisher => publisher
                             .EnablePublisherTransactions()
                             .EnablePublisherHost()
+                            .EnablePublisherPooling()
                         )
                     )
-                    /*
-                    .WithOutboxSupport(outbox =>
-                    {
-                        outbox
-                            .UseEntityFrameworkCore<ApplicationDbContext>()
-                            .UsePublishingServer();
-                    })
-                    */
                     .Consumers(builder => builder
-                        /*
                         .Add<PingRequest, PingRequestConsumer>(options => options
-                            .ConsumerCount(5)
-                            .ConsumerGroup("gr1"))
-                        .Add<PingRequest, PingRequestConsumer>(options => options
-                            .ConsumerCount(5)
-                            .ConsumerGroup("gr2"))
-                        */
-                        /*
-                        .Add<PingRequest, PingRequestDelayedConsumer>(options => options
-                            .ConsumerCount(1)
-                            .ConsumerGroup("gr3"))
-                        */
-                        .Add<PingRequest, PingRequestConsumer>(options => options
-                            .ConsumerCount(1)
+                            .ConsumerCount(25)
                             .ConsumerGroup("gr4")
                             .IncludeHeadersToLoggerScope()
                             .ConfigureQueue(q => q.AutoDelete())
                         )
                         .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
-                        // .Add<PingRequestConsumer>()
+                        .Add<RaiseRequest, RaiseRequestConsumer>()
                     )
                     .ConfigureConsumerPipe(builder => builder
                         .Use<LogAppIdMiddleware>()
@@ -84,10 +66,12 @@ namespace StreamFlow.Tests.AspNetCore
                         .Use(_ => new SetAppIdMiddleware("Published from StreamFlow.Tests.AspNetCore", "StreamFlow Asp.Net Core Test"))
                     );
             });
+
+            //services.AddHostedService<HighLoadPublisherHostedService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IRabbitMqPublisherBus bus, IHostApplicationLifetime lifetime)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IRabbitMqPublisherBus bus, IHostApplicationLifetime lifetime, IServiceProvider services)
         {
             if (env.IsDevelopment())
             {
@@ -114,7 +98,7 @@ namespace StreamFlow.Tests.AspNetCore
                 endpoints.MapMetrics();
             });
 
-            Task.Factory.StartNew(() => ChaosEngineering(bus, lifetime.ApplicationStopping), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => StartPublisher(bus, lifetime.ApplicationStopping), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             /*
             Task.Factory.StartNew(() => publisher.PublishAsync(
@@ -124,7 +108,8 @@ namespace StreamFlow.Tests.AspNetCore
             */
         }
 
-        private async Task ChaosEngineering(IRabbitMqPublisherBus bus, CancellationToken cancellationToken)
+
+        private async Task StartPublisher(IRabbitMqPublisherBus bus, CancellationToken cancellationToken)
         {
             var counter = 0;
 
@@ -137,54 +122,21 @@ namespace StreamFlow.Tests.AspNetCore
                     Timestamp = DateTime.UtcNow,
                     Message = counter.ToString()
                 });
-;
-                /*
-                if (counter % 20 == 0 && RabbitMqConsumer.Channels.Count > 0)
+
+                if ((counter-1) % 10 == 0)
                 {
-                    Console.WriteLine("Killing channel!");
-                    foreach (var item in RabbitMqConsumer.Channels)
+                    try
                     {
-                        var channel = item.Value;
-                        if (channel.IsOpen)
-                        {
-                            channel.BasicNack(123455, false, false);
-                            break;
-                        }
+                        bus.Publish(new RaiseRequest());
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Unable to publish RaiseRequest: {e.Message}");
                     }
                 }
-                */
 
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }
-        }
-    }
-
-    public interface IDomainEvent
-    {
-
-    }
-
-    public class PingRequest: IDomainEvent
-    {
-        public DateTime Timestamp { get; set; }
-        public string Message { get; set; }
-    }
-
-    public class PingRequestConsumer : IConsumer<PingRequest>
-    {
-        public Task Handle(IMessage<PingRequest> message, CancellationToken cancellationToken)
-        {
-            Console.WriteLine(message.Body.Timestamp + " " + message.Body.Message);
-            // throw new Exception("Unable to handle!");
-            return Task.CompletedTask;
-        }
-    }
-
-    public class PingRequestDelayedConsumer : IConsumer<PingRequest>
-    {
-        public Task Handle(IMessage<PingRequest> message, CancellationToken cancellationToken)
-        {
-            return Task.Delay(TimeSpan.FromMinutes(2), cancellationToken);
         }
     }
 

@@ -4,28 +4,25 @@ using RabbitMQ.Client.Events;
 
 namespace StreamFlow.RabbitMq.Connection;
 
-internal interface IRabbitMqPublisherConnection
+internal interface IRabbitMqErrorHandlerConnection
 {
-    RabbitMqPublisherOptions Options { get; }
-    IConnection Get();
     RabbitMqChannel CreateChannel();
 }
 
-internal class RabbitMqPublisherConnection: IRabbitMqPublisherConnection, IDisposable
+internal class RabbitMqErrorHandlerConnection : IRabbitMqErrorHandlerConnection, IDisposable
 {
     private readonly ILogger<RabbitMqPublisherConnection> _logger;
     private readonly Lazy<IConnection> _connection;
 
-    public RabbitMqPublisherConnection(RabbitMqPublisherOptions options, IRabbitMqConnection connection, ILogger<RabbitMqPublisherConnection> logger)
+    public RabbitMqErrorHandlerConnection(IRabbitMqConnection connection, ILogger<RabbitMqPublisherConnection> logger)
     {
-        Options = options;
         _logger = logger;
 
         _connection = new Lazy<IConnection>(() =>
         {
-            _logger.LogWarning("Creating publisher RabbitMQ connection");
+            _logger.LogWarning("Creating error handler RabbitMQ connection");
 
-            var physicalConnection = connection.Create(ConnectionType.Publisher);
+            var physicalConnection = connection.Create(ConnectionType.Error);
 
             physicalConnection.CallbackException += OnPhysicalConnectionCallbackException;
             physicalConnection.ConnectionBlocked += OnPhysicalConnectionBlocked;
@@ -35,8 +32,6 @@ internal class RabbitMqPublisherConnection: IRabbitMqPublisherConnection, IDispo
             return physicalConnection;
         });
     }
-
-    public RabbitMqPublisherOptions Options { get; }
 
     public void Dispose()
     {
@@ -77,7 +72,7 @@ internal class RabbitMqPublisherConnection: IRabbitMqPublisherConnection, IDispo
     public RabbitMqChannel CreateChannel()
     {
         var connection = _connection.Value;
-        return new RabbitMqChannel(connection, Options.ConfirmationType);
+        return new RabbitMqChannel(connection, ConfirmationType.Transactional);
     }
 
     private void OnPhysicalConnectionUnblocked(object? sender, EventArgs e)

@@ -25,15 +25,13 @@ namespace StreamFlow.RabbitMq.Server
             RoutingKey = routingKey;
         }
 
-        public string Exchange { get; init; }
-        public string Queue { get; init; }
-        public string RoutingKey { get; init; }
+        public string Exchange { get; }
+        public string Queue { get; }
+        public string RoutingKey { get; }
     }
 
     public class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
     {
-        internal static ConcurrentDictionary<string, IModel> Channels = new();
-
         private readonly ConcurrentDictionary<ulong, BasicDeliverEventArgs> _received = new();
         private readonly ManualResetEventSlim _consumerIsIdle = new(true);
 
@@ -70,14 +68,12 @@ namespace StreamFlow.RabbitMq.Server
                 }
             };
 
-            channel.CallbackException += (sender, args) =>
+            channel.CallbackException += (_, args) =>
             {
                 _logger.LogWarning("Callback exception: {@Details}", args);
             };
 
             _consumer = new AsyncEventingBasicConsumer(channel);
-
-            Channels.TryAdd(Id, channel);
 
             return channel;
         }
@@ -260,7 +256,7 @@ namespace StreamFlow.RabbitMq.Server
             try
             {
                 await errorHandler
-                    .HandleAsync(_channel, exception, consumerRegistration, @event, _info.Queue)
+                    .HandleAsync(exception, consumerRegistration, @event, _info.Queue)
                     .ConfigureAwait(false);
 
                 // error successfully handled, acknowledge current message
@@ -329,8 +325,9 @@ namespace StreamFlow.RabbitMq.Server
             finally
             {
                 IsDisposed = true;
-                Channels.TryRemove(Id, out _);
             }
+
+            GC.SuppressFinalize(this);
         }
     }
 }

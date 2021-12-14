@@ -1,69 +1,94 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using StreamFlow.RabbitMq.Connection;
 using StreamFlow.Server;
 
-namespace StreamFlow.RabbitMq.Server
+namespace StreamFlow.RabbitMq.Server;
+
+public interface IRabbitMqErrorHandler
 {
-    public interface IRabbitMqErrorHandler
+    Task HandleAsync(Exception exception, IConsumerRegistration consumerRegistration, BasicDeliverEventArgs @event, string queue);
+}
+
+internal class RabbitMqErrorHandler: IRabbitMqErrorHandler
+{
+    private static readonly object Lock = new();
+    private static readonly Dictionary<string, DateTime> ErrorQueues = new();
+
+    private readonly IRabbitMqErrorHandlerConnection _connection;
+    private readonly IRabbitMqConventions _conventions;
+    private readonly IRabbitMqMetrics _metrics;
+    private readonly ILogger<RabbitMqErrorHandler> _logger;
+
+    public RabbitMqErrorHandler(IRabbitMqErrorHandlerConnection connection, IRabbitMqConventions conventions, IRabbitMqMetrics metrics, ILogger<RabbitMqErrorHandler> logger)
     {
-        Task HandleAsync(IModel channel, Exception exception, IConsumerRegistration consumerRegistration, BasicDeliverEventArgs @event, string queue);
+        _connection = connection;
+        _conventions = conventions;
+        _metrics = metrics;
+        _logger = logger;
     }
 
-    public class RabbitMqErrorHandler: IRabbitMqErrorHandler
+    public Task HandleAsync(Exception exception, IConsumerRegistration consumerRegistration, BasicDeliverEventArgs @event, string queue)
     {
-        private readonly IRabbitMqConventions _conventions;
-        private readonly ILogger<RabbitMqErrorHandler> _logger;
+        var errorQueueName = _conventions.GetErrorQueueName(
+            consumerRegistration.RequestType,
+            consumerRegistration.ConsumerType,
+            consumerRegistration.Options.ConsumerGroup
+        );
 
-        public RabbitMqErrorHandler(IRabbitMqConventions conventions, ILogger<RabbitMqErrorHandler> logger)
+        _logger.LogDebug("Moving message to error queue [{ErrorQueueName}].", errorQueueName);
+
+        try
         {
-            _conventions = conventions;
-            _logger = logger;
+            var properties = @event.BasicProperties;
+
+            properties.Headers ??= new Dictionary<string, object>();
+            properties.Headers["SF:OriginalExchange"] = @event.Exchange;
+            properties.Headers["SF:OriginalQueue"] = queue;
+            properties.Headers["SF:OriginalRoutingKey"] = @event.RoutingKey;
+            properties.Headers["SF:ExceptionTime"] = DateTime.UtcNow.ToString("O");
+            properties.Headers["SF:ExceptionMessage"] = exception.Message;
+            if (!string.IsNullOrWhiteSpace(exception.StackTrace))
+            {
+                properties.Headers["SF:ExceptionStackTrace"] = exception.StackTrace;
+            }
+
+            EnsureErrorQueueExists(consumerRegistration, errorQueueName);
+
+            using var rabbitmq = _connection.CreateChannel();
+            rabbitmq.Send(@event.Body, properties, errorQueueName, null, _metrics);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to send message to error queue [{ErrorQueue}].", errorQueueName);
+            throw;
         }
 
-        public Task HandleAsync(IModel channel, Exception exception, IConsumerRegistration consumerRegistration, BasicDeliverEventArgs @event, string queue)
+        return Task.CompletedTask;
+    }
+
+    private void EnsureErrorQueueExists(IConsumerRegistration consumerRegistration, string errorQueueName)
+    {
+        if (!ErrorQueues.ContainsKey(errorQueueName))
         {
-            var errorQueueName = _conventions.GetErrorQueueName(
-                consumerRegistration.RequestType,
-                consumerRegistration.ConsumerType,
-                consumerRegistration.Options.ConsumerGroup
-            );
-
-            _logger.LogDebug("Moving message to error queue [{ErrorQueueName}].", errorQueueName);
-
-            try
+            lock (Lock)
             {
-                var properties = @event.BasicProperties;
-
-                properties.Headers ??= new Dictionary<string, object>();
-                properties.Headers["SF:OriginalExchange"] = @event.Exchange;
-                properties.Headers["SF:OriginalQueue"] = queue;
-                properties.Headers["SF:OriginalRoutingKey"] = @event.RoutingKey;
-                properties.Headers["SF:ExceptionTime"] = DateTime.UtcNow.ToString("O");
-                properties.Headers["SF:ExceptionMessage"] = exception.Message;
-                if (!string.IsNullOrWhiteSpace(exception.StackTrace))
+                if (!ErrorQueues.ContainsKey(errorQueueName))
                 {
-                    properties.Headers["SF:ExceptionStackTrace"] = exception.StackTrace;
+                    var arguments = new Dictionary<string, object>
+                    {
+                        {"streamflow-error-queue", true}
+                    };
+
+                    var defaults = consumerRegistration.Default;
+                    var queueOptions = consumerRegistration.Options.Queue;
+
+                    using var rabbitmq = _connection.CreateChannel();
+                    rabbitmq.Channel.TryCreateQueue(_logger, defaults, queueOptions, errorQueueName, false, arguments);
+
+                    ErrorQueues.TryAdd(errorQueueName, DateTime.UtcNow);
                 }
-
-                var arguments = new Dictionary<string, object>
-                {
-                    { "streamflow-error-queue", true }
-                };
-
-                channel.QueueDeclare(errorQueueName, true, false, false, arguments);
-                channel.BasicPublish(string.Empty, errorQueueName, true, properties, @event.Body);
             }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Unable to send message to error queue [{ErrorQueue}].", errorQueueName);
-                throw;
-            }
-
-            return Task.CompletedTask;
         }
     }
 }

@@ -52,6 +52,8 @@ namespace StreamFlow.RabbitMq.Server
             _disposing = true;
             DestroyConsumer();
             _disposed = true;
+
+            GC.SuppressFinalize(this);
         }
 
         private void CreateConsumerInternal(RabbitMqConsumerInfo consumerInfo)

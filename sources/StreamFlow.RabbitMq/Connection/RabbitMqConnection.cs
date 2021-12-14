@@ -6,7 +6,14 @@ namespace StreamFlow.RabbitMq.Connection;
 
 public interface IRabbitMqConnection
 {
-    IConnection Create();
+    IConnection Create(ConnectionType type);
+}
+
+public enum ConnectionType
+{
+    Consumer,
+    Publisher,
+    Error
 }
 
 public class RabbitMqConnection: IRabbitMqConnection
@@ -14,8 +21,12 @@ public class RabbitMqConnection: IRabbitMqConnection
     private static readonly string StreamFlowVersion;
 
     private readonly string[] _hostNames;
+    private readonly string _userName;
+    private readonly string _password;
+    private readonly string _virtualHost;
     private readonly string _serviceId;
-    private readonly ConnectionFactory _connectionFactory;
+
+    private ConnectionFactory? _connectionFactory;
 
     static RabbitMqConnection()
     {
@@ -30,11 +41,13 @@ public class RabbitMqConnection: IRabbitMqConnection
         }
 
         _hostNames = hostNames;
+        _userName = userName;
+        _password = password;
+        _virtualHost = virtualHost;
         _serviceId = serviceId;
-        _connectionFactory = CreateConnectionFactory(userName, password, virtualHost, serviceId);
     }
 
-    public IConnection Create()
+    public IConnection Create(ConnectionType type)
     {
         var endpoints = _hostNames
             .Select(node =>
@@ -52,15 +65,27 @@ public class RabbitMqConnection: IRabbitMqConnection
             }).ToArray();
 
         var endpointResolver = new DefaultEndpointResolver(endpoints);
-        var connection = _connectionFactory.CreateConnection(endpointResolver, _serviceId);
-        return connection;
+
+        var identity = type.ToString().ToLower();
+        var id = $"{_serviceId}/{identity}";
+
+        if (_connectionFactory == null)
+        {
+            lock (this)
+            {
+                _connectionFactory ??= CreateConnectionFactory(_userName, _password, _virtualHost, id, type);
+            }
+        }
+
+        return _connectionFactory.CreateConnection(endpointResolver, id);
     }
 
-    private ConnectionFactory CreateConnectionFactory(string userName, string password, string virtualHost, string? serviceId)
+    private ConnectionFactory CreateConnectionFactory(string userName, string password, string virtualHost, string? serviceId, ConnectionType type)
     {
         var entryAssembly = GetEntryAssembly();
         var entryAssemblyName = entryAssembly.GetName().Name ?? "unable to resolve assembly name";
         var entryAssemblyVersion = GetAssemblyVersion(entryAssembly);
+        var identity = type.ToString().ToLower();
 
         var connectionFactory = new ConnectionFactory
         {
@@ -79,7 +104,7 @@ public class RabbitMqConnection: IRabbitMqConnection
                 ["client_library_version"] = StreamFlowVersion,
                 ["entry_assembly"] = entryAssemblyName,
                 ["entry_assembly_version"] = entryAssemblyVersion,
-                ["stream_flow_service_id"] = serviceId
+                ["stream_flow_service_id"] = $"{serviceId}/{identity}"
             }
         };
         return connectionFactory;

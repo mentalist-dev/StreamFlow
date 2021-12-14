@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -81,7 +78,7 @@ namespace StreamFlow.Outbox
                     }
 
                     await publisher
-                        .PublishAsync(message, options, stoppingToken)
+                        .PublishAsync(message, options)
                         .ConfigureAwait(false);
 
                     await store.MarkAsPublished(outboxMessage, CancellationToken.None);

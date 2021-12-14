@@ -12,12 +12,12 @@ internal class RabbitMqChannel : IDisposable
     private readonly ConcurrentQueue<BasicNackEventArgs> _rejected = new();
 
     private readonly Channel<BasicReturnEventArgs> _returned = System.Threading.Channels.Channel.CreateBounded<BasicReturnEventArgs>(10000);
+    private readonly ConfirmationType? _confirmation;
 
     public RabbitMqChannel(IConnection connection, ConfirmationType? confirmationType)
     {
-        Connection = connection ?? throw new ArgumentNullException(nameof(connection));
         Channel = connection.CreateModel();
-        Confirmation = confirmationType;
+        _confirmation = confirmationType;
 
         switch (confirmationType)
         {
@@ -39,11 +39,12 @@ internal class RabbitMqChannel : IDisposable
         }
     }
 
-    public IConnection Connection { get; }
+    public Guid Id { get; } = Guid.NewGuid();
     public IModel Channel { get; }
-    public ConfirmationType? Confirmation { get; }
 
     public bool IsOpen => Channel.IsOpen;
+
+    internal event EventHandler<EventArgs>? Disposed;
 
     public void Close(ushort replyCode, string replyText)
     {
@@ -52,9 +53,9 @@ internal class RabbitMqChannel : IDisposable
 
     public void Dispose()
     {
-        _returned.Writer.Complete();
+        _returned.Writer.TryComplete();
 
-        if (Confirmation == ConfirmationType.PublisherConfirms)
+        if (_confirmation == ConfirmationType.PublisherConfirms)
         {
             Channel.BasicAcks -= OnAcknowledge;
             Channel.BasicNacks -= OnReject;
@@ -62,6 +63,10 @@ internal class RabbitMqChannel : IDisposable
         }
 
         Channel.Dispose();
+
+        Disposed?.Invoke(this, EventArgs.Empty);
+
+        GC.SuppressFinalize(this);
     }
 
     public PublishResponse Publish(IMessageContext message, bool isMandatory, bool waitForConfirmation, TimeSpan? waitForConfirmationTimeout, IRabbitMqMetrics metrics)
@@ -69,7 +74,7 @@ internal class RabbitMqChannel : IDisposable
         var timer = Stopwatch.StartNew();
 
         var response = new PublishResponse(
-            Confirmation == ConfirmationType.PublisherConfirms ? Channel.NextPublishSeqNo : null
+            _confirmation == ConfirmationType.PublisherConfirms ? Channel.NextPublishSeqNo : null
         );
 
         var properties = Channel.CreateBasicProperties();
@@ -95,7 +100,7 @@ internal class RabbitMqChannel : IDisposable
         metrics.PublishingEvent(exchange, "channel:commit", timer.Elapsed);
         timer.Restart();
 
-        if (Confirmation == ConfirmationType.PublisherConfirms)
+        if (_confirmation == ConfirmationType.PublisherConfirms)
         {
             while (_acknowledged.TryDequeue(out var ack))
             {
@@ -117,9 +122,50 @@ internal class RabbitMqChannel : IDisposable
         return response;
     }
 
-    public void Commit(bool waitForConfirmation, TimeSpan? timeout = null)
+    public PublishResponse Send(ReadOnlyMemory<byte> body, IBasicProperties properties, string queueName, TimeSpan? waitForConfirmationTimeout, IRabbitMqMetrics metrics)
     {
-        switch (Confirmation)
+        var timer = Stopwatch.StartNew();
+
+        var response = new PublishResponse(
+            _confirmation == ConfirmationType.PublisherConfirms ? Channel.NextPublishSeqNo : null
+        );
+
+        Channel.BasicPublish(string.Empty, queueName, true, properties, body);
+
+        const string exchangeName = "(AMQP default)";
+        metrics.PublishingEvent(exchangeName, "channel:basic-publish", timer.Elapsed);
+        timer.Restart();
+
+        Commit(true, waitForConfirmationTimeout);
+
+        metrics.PublishingEvent(exchangeName, "channel:commit", timer.Elapsed);
+        timer.Restart();
+
+        if (_confirmation == ConfirmationType.PublisherConfirms)
+        {
+            while (_acknowledged.TryDequeue(out var ack))
+            {
+                response.Acknowledged(ack.DeliveryTag, ack.Multiple);
+            }
+
+            metrics.PublishingEvent(exchangeName, "channel:ack-collect", timer.Elapsed);
+            timer.Restart();
+
+            while (_rejected.TryDequeue(out var nack))
+            {
+                response.Rejected(nack.DeliveryTag, nack.Multiple);
+            }
+
+            metrics.PublishingEvent(exchangeName, "channel:nack-collect", timer.Elapsed);
+            timer.Restart();
+        }
+
+        return response;
+    }
+
+    private void Commit(bool waitForConfirmation, TimeSpan? timeout = null)
+    {
+        switch (_confirmation)
         {
             case ConfirmationType.PublisherConfirms:
                 if (waitForConfirmation)

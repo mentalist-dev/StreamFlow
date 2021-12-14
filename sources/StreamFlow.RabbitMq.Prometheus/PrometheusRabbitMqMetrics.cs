@@ -50,6 +50,14 @@ namespace StreamFlow.RabbitMq.Prometheus
             "streamflow_messages_bus_publishing_errors",
             "Message bus publishing errors");
 
+        private readonly Gauge _publisherPoolGauge = Metrics.CreateGauge(
+            "streamflow_publisher_pool_size",
+            "Publishers in a pool");
+
+        private readonly Gauge _publisherPoolInUseGauge = Metrics.CreateGauge(
+            "streamflow_publisher_pool_in_use",
+            "Publishers which are currently created by pool and are used");
+
         public IDurationMetric Publishing(string exchangeName)
         {
             return new DurationMetric(_publishingHistogram, exchangeName);
@@ -90,6 +98,16 @@ namespace StreamFlow.RabbitMq.Prometheus
         {
             _busPublishingErrorCounter.Inc();
         }
+
+        public void ReportPublisherPoolSize(int poolSize)
+        {
+            _publisherPoolGauge.Set(poolSize);
+        }
+
+        public void ReportPublisherPoolInUse(int publishersInUse)
+        {
+            _publisherPoolInUseGauge.Set(publishersInUse);
+        }
     }
 
     internal class DurationMetric : IDurationMetric
@@ -120,6 +138,8 @@ namespace StreamFlow.RabbitMq.Prometheus
             _histogram
                 .Labels(labelValues.ToArray())
                 .Observe(_timer.Elapsed.TotalSeconds);
+
+            GC.SuppressFinalize(this);
         }
 
         public void Complete()

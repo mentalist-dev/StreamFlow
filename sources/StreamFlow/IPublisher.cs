@@ -4,7 +4,7 @@ namespace StreamFlow
 {
     public interface IPublisher
     {
-        Task<PublishResponse> PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T : class;
+        Task<PublishResponse> PublishAsync<T>(T message, PublishOptions? options = null) where T : class;
     }
 
     public class PublishOptions
