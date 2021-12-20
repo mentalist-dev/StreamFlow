@@ -28,8 +28,7 @@ namespace StreamFlow.Tests.AspNetCore
             {
                 ServiceId = "sf-tests",
                 QueuePrefix = "SFQ.",
-                ExchangePrefix = "SFE.",
-                PrefetchCount = 10
+                ExchangePrefix = "SFE."
             };
 
             services.AddDbContext<ApplicationDbContext>(options =>
@@ -42,7 +41,7 @@ namespace StreamFlow.Tests.AspNetCore
                 transport
                     .UseRabbitMq(mq => mq
                         .Connection("localhost", "guest", "guest")
-                        .EnableConsumerHost()
+                        .EnableConsumerHost(consumer => consumer.Prefetch(5))
                         .WithPrometheusMetrics()
                         .WithPublisherOptions(publisher => publisher
                             .EnablePublisherTransactions()

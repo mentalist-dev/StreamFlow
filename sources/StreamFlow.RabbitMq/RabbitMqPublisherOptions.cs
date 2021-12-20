@@ -4,9 +4,9 @@ namespace StreamFlow.RabbitMq;
 
 public class RabbitMqPublisherOptions
 {
-    internal ConfirmationType? ConfirmationType { get; set; }
-    internal bool IsPublisherHostEnabled { get; set; }
-    internal RabbitMqPublisherPoolOptions? PoolOptions { get; set; } = new();
+    internal ConfirmationType? ConfirmationType { get; private set; }
+    internal bool IsPublisherHostEnabled { get; private set; }
+    internal RabbitMqPublisherPoolOptions? PoolOptions { get; private set; } = new();
 
     public RabbitMqPublisherOptions EnablePublisherHost(bool enable = true)
     {

@@ -9,7 +9,6 @@ namespace StreamFlow
         public string? ExchangePrefix { get; set; }
         public string? ErrorQueueSuffix { get; set; }
         public string? Separator { get; set; }
-        public ushort? PrefetchCount { get; set; }
 
         public StreamFlowDefaults? Default { get; set; }
 
@@ -30,12 +29,6 @@ namespace StreamFlow
         public StreamFlowOptions ConsumerSeparator(string separator)
         {
             Separator = separator;
-            return this;
-        }
-
-        public StreamFlowOptions Prefetch(ushort prefetchCount)
-        {
-            PrefetchCount = prefetchCount;
             return this;
         }
     }

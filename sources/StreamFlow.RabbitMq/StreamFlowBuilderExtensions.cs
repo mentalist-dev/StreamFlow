@@ -26,7 +26,7 @@ namespace StreamFlow.RabbitMq
     {
         IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/");
         IStreamFlowRabbitMq Connection(string[] hostNames, string userName, string password, string virtualHost = "/");
-        IStreamFlowRabbitMq EnableConsumerHost(ushort? defaultPrefetchCount = null);
+        IStreamFlowRabbitMq EnableConsumerHost(Action<RabbitMqConsumerOptions>? options = null);
         IStreamFlowRabbitMq WithMetricsProvider<TMetrics>() where TMetrics : class, IRabbitMqMetrics;
         IStreamFlowRabbitMq WithPublisherOptions(Action<RabbitMqPublisherOptions> options);
     }
@@ -36,6 +36,7 @@ namespace StreamFlow.RabbitMq
         private readonly IServiceCollection _services;
         private readonly StreamFlowOptions _options;
         private readonly RabbitMqPublisherOptions _publisherOptions;
+        private readonly RabbitMqConsumerOptions _consumerOptions;
 
         public StreamFlowRabbitMq(IServiceCollection services, StreamFlowOptions options)
         {
@@ -54,6 +55,9 @@ namespace StreamFlow.RabbitMq
 
             _publisherOptions = new RabbitMqPublisherOptions();
             services.AddSingleton(_publisherOptions);
+
+            _consumerOptions = new RabbitMqConsumerOptions();
+            services.AddSingleton(_consumerOptions);
         }
 
         public IStreamFlowRabbitMq Connection(string hostName, string userName, string password, string virtualHost = "/")
@@ -74,9 +78,11 @@ namespace StreamFlow.RabbitMq
             return this;
         }
 
-        public IStreamFlowRabbitMq EnableConsumerHost(ushort? defaultPrefetchCount = null)
+        public IStreamFlowRabbitMq EnableConsumerHost(Action<RabbitMqConsumerOptions>? options)
         {
             _services.AddHostedService<RabbitMqConsumerHostedService>();
+
+            options?.Invoke(_consumerOptions);
 
             return this;
         }
