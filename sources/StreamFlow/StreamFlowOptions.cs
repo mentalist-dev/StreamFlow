@@ -7,10 +7,37 @@ namespace StreamFlow
         public string? ServiceId { get; set; }
         public string? QueuePrefix { get; set; }
         public string? ExchangePrefix { get; set; }
-        public string? ErrorSuffix { get; set; }
+        public string? ErrorQueueSuffix { get; set; }
         public string? Separator { get; set; }
+        public ushort? PrefetchCount { get; set; }
 
         public StreamFlowDefaults? Default { get; set; }
+
+        public StreamFlowOptions Service(string id)
+        {
+            ServiceId = id;
+            return this;
+        }
+
+        public StreamFlowOptions Prefixes(string? queuePrefix = null, string? exchangePrefix = null, string? errorQueueSuffix = null)
+        {
+            QueuePrefix = queuePrefix;
+            ExchangePrefix = exchangePrefix;
+            ErrorQueueSuffix = errorQueueSuffix;
+            return this;
+        }
+
+        public StreamFlowOptions ConsumerSeparator(string separator)
+        {
+            Separator = separator;
+            return this;
+        }
+
+        public StreamFlowOptions Prefetch(ushort prefetchCount)
+        {
+            PrefetchCount = prefetchCount;
+            return this;
+        }
     }
 
     public class StreamFlowDefaults

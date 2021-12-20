@@ -18,16 +18,18 @@ namespace StreamFlow.RabbitMq.Server
 
     public class RabbitMqConsumerInfo
     {
-        public RabbitMqConsumerInfo(string exchange, string queue, string routingKey)
+        public RabbitMqConsumerInfo(string exchange, string queue, string routingKey, ushort? prefetchCount)
         {
             Exchange = exchange;
             Queue = queue;
             RoutingKey = routingKey;
+            PrefetchCount = prefetchCount;
         }
 
         public string Exchange { get; }
         public string Queue { get; }
         public string RoutingKey { get; }
+        public ushort? PrefetchCount { get; }
     }
 
     public class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
@@ -39,7 +41,7 @@ namespace StreamFlow.RabbitMq.Server
         private readonly RabbitMqConsumerInfo _info;
         private readonly ILogger<RabbitMqConsumer> _logger;
 
-        private AsyncEventingBasicConsumer? _consumer;
+        private readonly AsyncEventingBasicConsumer? _consumer;
         private readonly IModel _channel;
 
         public RabbitMqConsumer(IServiceProvider services, IConnection connection, RabbitMqConsumerInfo consumerInfo, ILogger<RabbitMqConsumer> logger)
@@ -50,10 +52,12 @@ namespace StreamFlow.RabbitMq.Server
             _logger = logger;
             _info = consumerInfo;
 
-            _channel = CreateConsumer(connection);
+            var current = CreateConsumer(connection, consumerInfo);
+            _channel = current.Channel;
+            _consumer = current.Consumer;
         }
 
-        private IModel CreateConsumer(IConnection connection)
+        private (IModel Channel, AsyncEventingBasicConsumer Consumer) CreateConsumer(IConnection connection, RabbitMqConsumerInfo consumerInfo)
         {
             var channel = connection.CreateModel();
             channel.ModelShutdown += (_, args) =>
@@ -73,9 +77,12 @@ namespace StreamFlow.RabbitMq.Server
                 _logger.LogWarning("Callback exception: {@Details}", args);
             };
 
-            _consumer = new AsyncEventingBasicConsumer(channel);
+            if (consumerInfo.PrefetchCount > 0)
+                channel.BasicQos(0, consumerInfo.PrefetchCount.Value, false);
 
-            return channel;
+            var consumer = new AsyncEventingBasicConsumer(channel);
+
+            return (channel, consumer);
         }
 
         public string Id { get; }

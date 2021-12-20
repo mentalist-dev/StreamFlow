@@ -4,6 +4,7 @@ namespace StreamFlow.Configuration
     {
         public string? ConsumerGroup { get; private set; }
         public int ConsumerCount { get; private set; } = 1;
+        public ushort? PrefetchCount { get; private set; }
         public QueueOptions Queue { get; } = new();
         public bool IncludeHeadersToLoggerScope { get; private set; } = true;
         public HashSet<string> ExcludeHeaderNamesFromLoggerScope { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -36,6 +37,12 @@ namespace StreamFlow.Configuration
             ExcludeHeaderNamesFromLoggerScope.Clear();
             ExcludeHeaderNamesFromLoggerScope.UnionWith(exceptHeaderNames);
 
+            return this;
+        }
+
+        IConsumerOptionsBuilder IConsumerOptionsBuilder.Prefetch(ushort prefetchCount)
+        {
+            PrefetchCount = prefetchCount;
             return this;
         }
     }

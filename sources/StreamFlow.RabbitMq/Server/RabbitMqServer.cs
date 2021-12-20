@@ -19,18 +19,20 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
 {
     private readonly IServiceProvider _services;
     private readonly IRabbitMqConnection _connection;
+    private readonly StreamFlowOptions _options;
     private readonly IRabbitMqConventions _conventions;
     private readonly List<RabbitMqConsumerController> _consumerControllers = new();
     private readonly ILogger<RabbitMqConsumer> _logger;
 
     private IConnection? _physicalConnection;
 
-    public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, IRabbitMqConventions conventions, ILoggerFactory loggers)
+    public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, StreamFlowOptions options, IRabbitMqConventions conventions, ILoggerFactory loggers)
     {
         _logger = loggers.CreateLogger<RabbitMqConsumer>();
 
         _services = services;
         _connection = connection;
+        _options = options;
         _conventions = conventions;
     }
 
@@ -67,9 +69,11 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
             consumerCount = 1;
         }
 
-        for (int i = 0; i < consumerCount; i++)
+        var prefetchCount = consumerRegistration.Options.PrefetchCount ?? _options.PrefetchCount;
+
+        for (var i = 0; i < consumerCount; i++)
         {
-            var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey);
+            var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey, prefetchCount);
 
             var controller = new RabbitMqConsumerController(_services, consumerRegistration, consumerInfo, connection, _logger, cancellationToken);
             controller.Start();

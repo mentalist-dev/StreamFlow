@@ -95,7 +95,7 @@ namespace StreamFlow.RabbitMq
 
         protected virtual string AddErrorSuffix(string queueName)
         {
-            var suffix = _options.ErrorSuffix;
+            var suffix = _options.ErrorQueueSuffix;
 
             if (suffix == null)
             {

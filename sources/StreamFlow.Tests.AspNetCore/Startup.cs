@@ -28,7 +28,8 @@ namespace StreamFlow.Tests.AspNetCore
             {
                 ServiceId = "sf-tests",
                 QueuePrefix = "SFQ.",
-                ExchangePrefix = "SFE."
+                ExchangePrefix = "SFE.",
+                PrefetchCount = 10
             };
 
             services.AddDbContext<ApplicationDbContext>(options =>
@@ -57,7 +58,7 @@ namespace StreamFlow.Tests.AspNetCore
                             .ConfigureQueue(q => q.AutoDelete())
                         )
                         .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
-                        .Add<RaiseRequest, RaiseRequestConsumer>()
+                        .Add<RaiseRequest, RaiseRequestConsumer>(opt => opt.Prefetch(1))
                     )
                     .ConfigureConsumerPipe(builder => builder
                         .Use<LogAppIdMiddleware>()
