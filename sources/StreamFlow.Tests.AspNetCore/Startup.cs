@@ -98,7 +98,7 @@ namespace StreamFlow.Tests.AspNetCore
                 endpoints.MapMetrics();
             });
 
-            // Task.Factory.StartNew(() => StartPublisher(bus, lifetime.ApplicationStopping), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
+            Task.Factory.StartNew(() => StartPublisher(bus, lifetime.ApplicationStopping), TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach);
 
             /*
             Task.Factory.StartNew(() => publisher.PublishAsync(

@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client.Events;
 using StreamFlow.RabbitMq.Connection;
@@ -48,9 +49,23 @@ internal class RabbitMqErrorHandler: IRabbitMqErrorHandler
             properties.Headers["SF:OriginalRoutingKey"] = @event.RoutingKey;
             properties.Headers["SF:ExceptionTime"] = DateTime.UtcNow.ToString("O");
             properties.Headers["SF:ExceptionMessage"] = exception.Message;
+
             if (!string.IsNullOrWhiteSpace(exception.StackTrace))
             {
-                properties.Headers["SF:ExceptionStackTrace"] = exception.StackTrace;
+                var stackTrace = new StringBuilder(exception.StackTrace);
+                var innerException = exception.InnerException;
+                while (innerException != null)
+                {
+                    stackTrace.AppendLine();
+                    stackTrace.AppendLine("====================");
+                    stackTrace.AppendLine(innerException.Message);
+                    stackTrace.AppendLine();
+                    stackTrace.AppendLine(innerException.StackTrace);
+
+                    innerException = innerException.InnerException;
+                }
+
+                properties.Headers["SF:ExceptionDetails"] = stackTrace.ToString();
             }
 
             EnsureErrorQueueExists(consumerRegistration, errorQueueName);
