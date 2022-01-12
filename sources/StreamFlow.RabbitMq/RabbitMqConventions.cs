@@ -1,118 +1,126 @@
-namespace StreamFlow.RabbitMq
+namespace StreamFlow.RabbitMq;
+
+public interface IRabbitMqConventions
 {
-    public interface IRabbitMqConventions
+    string GetExchangeName(Type requestType);
+    string GetQueueName(Type requestType, Type consumerType, string? consumerGroup);
+    string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup);
+}
+
+public class RabbitMqConventions: IRabbitMqConventions
+{
+    private readonly StreamFlowOptions _options;
+
+    public RabbitMqConventions(StreamFlowOptions options)
     {
-        string GetExchangeName(Type requestType);
-        string GetQueueName(Type requestType, Type consumerType, string? consumerGroup);
-        string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup);
+        _options = options;
     }
 
-    public class RabbitMqConventions: IRabbitMqConventions
+    public string GetExchangeName(Type requestType)
     {
-        private readonly StreamFlowOptions _options;
+        return $"{_options.ExchangePrefix}{requestType.Name}";
+    }
 
-        public RabbitMqConventions(StreamFlowOptions options)
+    public string GetQueueName(Type requestType, Type consumerType, string? consumerGroup)
+    {
+        var queueName = CreateQueueNameBase(requestType, consumerType);
+        queueName = AddServiceId(queueName, _options.ServiceId);
+        queueName = AddConsumerGroup(queueName, consumerGroup);
+        return $"{_options.QueuePrefix}{queueName}";
+    }
+
+    public string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup)
+    {
+        var queueName = CreateQueueNameBase(requestType, consumerType);
+        queueName = AddServiceId(queueName, _options.ServiceId);
+        queueName = AddConsumerGroup(queueName, consumerGroup);
+        var errorQueueName = AddErrorSuffix(queueName);
+        return $"{_options.QueuePrefix}{errorQueueName}";
+    }
+
+    protected virtual string CreateQueueNameBase(Type requestType, Type consumerType)
+    {
+        var consumerTypeName = GetTypeName(consumerType);
+
+        if (!string.IsNullOrWhiteSpace(consumerTypeName))
         {
-            _options = options;
-        }
-
-        public string GetExchangeName(Type requestType)
-        {
-            return $"{_options.ExchangePrefix}{requestType.Name}";
-        }
-
-        public string GetQueueName(Type requestType, Type consumerType, string? consumerGroup)
-        {
-            var queueName = CreateQueueNameBase(requestType, consumerType);
-            queueName = AddServiceId(queueName, _options.ServiceId);
-            queueName = AddConsumerGroup(queueName, consumerGroup);
-            return $"{_options.QueuePrefix}{queueName}";
-        }
-
-        public string GetErrorQueueName(Type requestType, Type consumerType, string? consumerGroup)
-        {
-            var queueName = CreateQueueNameBase(requestType, consumerType);
-            queueName = AddServiceId(queueName, _options.ServiceId);
-            queueName = AddConsumerGroup(queueName, consumerGroup);
-            var errorQueueName = AddErrorSuffix(queueName);
-            return $"{_options.QueuePrefix}{errorQueueName}";
-        }
-
-        protected virtual string CreateQueueNameBase(Type requestType, Type consumerType)
-        {
-            var consumerTypeName = GetTypeName(consumerType);
-
             var separator = GetSeparator();
             return $"{requestType.Name}{separator}{consumerTypeName}";
         }
 
-        protected virtual string GetTypeName(Type consumerType)
+        return requestType.Name;
+    }
+
+    protected virtual string GetTypeName(Type consumerType)
+    {
+        if (consumerType.IsAssignableTo(typeof(IGenericConsumer)))
+            return string.Empty;
+
+        var consumerTypeName = consumerType.Name;
+
+        if (consumerType.IsGenericType)
         {
-            var consumerTypeName = consumerType.Name;
-            if (consumerType.IsGenericType)
+            var index = consumerTypeName.IndexOf('`');
+            if (index > 0)
             {
-                var index = consumerTypeName.IndexOf('`');
-                if (index > 0)
+                consumerTypeName = consumerTypeName.Substring(0, index);
+
+                var arguments = consumerType.GenericTypeArguments.Select(GetTypeName);
+                var joined = string.Join(',', arguments);
+
+                if (!string.IsNullOrWhiteSpace(joined))
                 {
-                    consumerTypeName = consumerTypeName.Substring(0, index);
-
-                    var arguments = consumerType.GenericTypeArguments.Select(GetTypeName);
-                    var joined = string.Join(',', arguments);
-
-                    if (!string.IsNullOrWhiteSpace(joined))
-                    {
-                        consumerTypeName += $"<{joined}>";
-                    }
+                    consumerTypeName += $"<{joined}>";
                 }
             }
-
-            return consumerTypeName;
         }
 
-        protected virtual string AddServiceId(string queueName, string? serviceId)
+        return consumerTypeName;
+    }
+
+    protected virtual string AddServiceId(string queueName, string? serviceId)
+    {
+        if (!string.IsNullOrWhiteSpace(serviceId))
         {
-            if (!string.IsNullOrWhiteSpace(serviceId))
-            {
-                var separator = GetSeparator();
+            var separator = GetSeparator();
 
-                queueName += separator + serviceId;
-            }
-
-            return queueName;
+            queueName += separator + serviceId;
         }
 
-        protected virtual string AddConsumerGroup(string queueName, string? consumerGroup)
+        return queueName;
+    }
+
+    protected virtual string AddConsumerGroup(string queueName, string? consumerGroup)
+    {
+        if (!string.IsNullOrWhiteSpace(consumerGroup))
         {
-            if (!string.IsNullOrWhiteSpace(consumerGroup))
-            {
-                var separator = GetSeparator();
+            var separator = GetSeparator();
 
-                queueName += separator + consumerGroup;
-            }
-
-            return queueName;
+            queueName += separator + consumerGroup;
         }
 
-        protected virtual string AddErrorSuffix(string queueName)
+        return queueName;
+    }
+
+    protected virtual string AddErrorSuffix(string queueName)
+    {
+        var suffix = _options.ErrorQueueSuffix;
+
+        if (suffix == null)
         {
-            var suffix = _options.ErrorQueueSuffix;
+            var separator = GetSeparator();
 
-            if (suffix == null)
-            {
-                var separator = GetSeparator();
-
-                suffix = separator + "Error";
-            }
-
-            return $"{queueName}{suffix}";
+            suffix = separator + "Error";
         }
 
-        private string GetSeparator()
-        {
-            var separator = _options.Separator;
-            if (string.IsNullOrWhiteSpace(separator))
-                separator = ":";
-            return separator;
-        }
+        return $"{queueName}{suffix}";
+    }
+
+    private string GetSeparator()
+    {
+        var separator = _options.Separator;
+        if (string.IsNullOrWhiteSpace(separator))
+            separator = ":";
+        return separator;
     }
 }

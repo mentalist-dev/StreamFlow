@@ -1,6 +1,8 @@
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
 using StreamFlow.RabbitMq;
+using StreamFlow.RabbitMq.MediatR;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.RabbitMq.Publisher;
 using StreamFlow.Tests.AspNetCore.Application.Errors;
@@ -36,6 +38,8 @@ namespace StreamFlow.Tests.AspNetCore
                 options.UseNpgsql("Server=localhost;User Id=admin;Password=admin;Database=StreamFlow");
             });
 
+            services.AddMediatR(typeof(Startup).Assembly);
+
             services.AddStreamFlow(streamFlowOptions, transport =>
             {
                 transport
@@ -50,7 +54,7 @@ namespace StreamFlow.Tests.AspNetCore
                         )
                     )
                     .Consumers(builder => builder
-                        .Add<PingRequest, PingRequestConsumer>(options => options
+                        .Add<PingMessage, PingMessageConsumer>(options => options
                             .ConsumerCount(25)
                             .ConsumerGroup("gr4")
                             .IncludeHeadersToLoggerScope()
@@ -58,6 +62,10 @@ namespace StreamFlow.Tests.AspNetCore
                         )
                         .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
                         .Add<RaiseRequest, RaiseRequestConsumer>(opt => opt.Prefetch(1))
+                        .AddNotification<PingNotification>(opt => opt.Prefetch(1))
+                        .AddRequest<PingRequest>(opt => opt.Prefetch(1))
+                        .AddRequest<PingPongRequest, PongResponse>(opt => opt.Prefetch(1))
+                        .AddNotification<PongResponse>(opt => opt.Prefetch(1))
                     )
                     .ConfigureConsumerPipe(builder => builder
                         .Use<LogAppIdMiddleware>()
@@ -102,7 +110,7 @@ namespace StreamFlow.Tests.AspNetCore
 
             /*
             Task.Factory.StartNew(() => publisher.PublishAsync(
-                new PingRequest { Timestamp = DateTime.UtcNow },
+                new PingMessage { Timestamp = DateTime.UtcNow },
                 new PublishOptions { PublisherConfirmsEnabled = true })
             );
             */
@@ -113,9 +121,23 @@ namespace StreamFlow.Tests.AspNetCore
         {
             var counter = 0;
 
+            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 counter += 1;
+
+                bus.Publish(new PingMessage
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Message = counter.ToString()
+                });
+
+                bus.Publish(new PingNotification
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Message = counter.ToString()
+                });
 
                 bus.Publish(new PingRequest
                 {
@@ -123,6 +145,13 @@ namespace StreamFlow.Tests.AspNetCore
                     Message = counter.ToString()
                 });
 
+                bus.Publish(new PingPongRequest
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Message = counter.ToString()
+                });
+
+                /*
                 if ((counter-1) % 10 == 0)
                 {
                     try
@@ -134,8 +163,9 @@ namespace StreamFlow.Tests.AspNetCore
                         Console.WriteLine($"Unable to publish RaiseRequest: {e.Message}");
                     }
                 }
+                */
 
-                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
             }
         }
     }

@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net5.0;net6.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Authors>mentalist.dev</Authors>
+    <Company />
+    <Title>RabbitMQ Messaging Framework</Title>
+    <Description>RabbitMQ.Client wrapper</Description>
+    <PackageProjectUrl>https://github.com/mentalist-dev/StreamFlow</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
+    <PackageTags>Messaging RabbitMq Framework StreamFlow ServiceBus EventBus MediatR</PackageTags>
+    <Version>6.6.0</Version>
+    <PackageReleaseNotes></PackageReleaseNotes>
+    <AssemblyVersion>6.0.0.0</AssemblyVersion>
+    <FileVersion>6.0.0.0</FileVersion>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <LangVersion>latest</LangVersion>
+    <!--async methods without await -->
+    <WarningsAsErrors>CS4014;</WarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\LICENSE" Link="license\LICENSE">
+      <Pack>true</Pack>
+      <PackagePath></PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StreamFlow.RabbitMq\StreamFlow.RabbitMq.csproj" />
+  </ItemGroup>
+
+</Project>

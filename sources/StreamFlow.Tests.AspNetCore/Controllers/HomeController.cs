@@ -19,7 +19,7 @@ namespace StreamFlow.Tests.AspNetCore.Controllers
 
         public async Task<IActionResult> Index()
         {
-            IDomainEvent request = new PingRequest {Timestamp = DateTime.UtcNow};
+            IDomainEvent request = new PingMessage {Timestamp = DateTime.UtcNow};
             await _publisher.PublishAsync(
                 request,
                 new PublishOptions

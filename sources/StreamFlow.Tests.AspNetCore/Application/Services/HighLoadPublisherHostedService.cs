@@ -53,7 +53,7 @@ namespace StreamFlow.Tests.AspNetCore.Application.Services
         {
             await using var scope = _services.CreateAsyncScope();
             var publisher = scope.ServiceProvider.GetRequiredService<IPublisher>();
-            await publisher.PublishAsync(new PingRequest()).ConfigureAwait(false);
+            await publisher.PublishAsync(new PingMessage()).ConfigureAwait(false);
         }
     }
 }

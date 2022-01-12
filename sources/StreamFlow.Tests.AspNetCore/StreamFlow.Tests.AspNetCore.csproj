@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MediatR.Extensions.Microsoft.DependencyInjection" Version="10.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="6.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -20,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StreamFlow.Outbox.EntityFrameworkCore\StreamFlow.Outbox.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\StreamFlow.RabbitMq.MediatR\StreamFlow.RabbitMq.MediatR.csproj" />
     <ProjectReference Include="..\StreamFlow.RabbitMq.Prometheus\StreamFlow.RabbitMq.Prometheus.csproj" />
     <ProjectReference Include="..\StreamFlow.RabbitMq\StreamFlow.RabbitMq.csproj" />
   </ItemGroup>
