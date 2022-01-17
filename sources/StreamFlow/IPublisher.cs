@@ -19,6 +19,9 @@ namespace StreamFlow
         public TimeSpan? WaitForConfirmationTimeout { get; set; }
 
         public string? TargetAddress { get; set; }
+
+        internal string? MetricsPrefix { get; set; }
+        internal bool BusPublisher { get; set; }
     }
 
     public class PublishResponse

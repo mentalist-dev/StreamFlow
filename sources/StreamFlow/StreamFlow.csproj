@@ -14,7 +14,7 @@
     <PackageProjectUrl>https://github.com/mentalist-dev/StreamFlow</PackageProjectUrl>
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
     <PackageTags>Messaging Framework StreamFlow ServiceBus EventBus</PackageTags>
-    <Version>6.6.1</Version>
+    <Version>6.7.0</Version>
     <PackageReleaseNotes></PackageReleaseNotes>
     <AssemblyVersion>6.0.0.0</AssemblyVersion>
     <FileVersion>6.0.0.0</FileVersion>
@@ -44,6 +44,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="StreamFlow.RabbitMq" />
   </ItemGroup>
 
 </Project>

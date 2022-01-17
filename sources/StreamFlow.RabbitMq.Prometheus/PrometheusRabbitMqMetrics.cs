@@ -14,6 +14,15 @@ namespace StreamFlow.RabbitMq.Prometheus
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 16)
             });
 
+        private readonly Histogram _publishingByBusHistogram = Metrics.CreateHistogram(
+            "streamflow_bus_messages_published",
+            "Messages published using bus",
+            new HistogramConfiguration
+            {
+                LabelNames = new[] {"exchange", "state"},
+                Buckets = Histogram.ExponentialBuckets(0.001, 2, 16)
+            });
+
         private readonly Histogram _publishingEventsHistogram = Metrics.CreateHistogram(
             "streamflow_messages_publishing_events",
             "Events happened during publishing",
@@ -26,6 +35,11 @@ namespace StreamFlow.RabbitMq.Prometheus
         private readonly Counter _publishingErrorCounter = Metrics.CreateCounter(
             "streamflow_messages_publishing_errors",
             "Message publishing errors",
+            new CounterConfiguration {LabelNames = new[] {"exchange"}});
+
+        private readonly Counter _publishingByBusErrorCounter = Metrics.CreateCounter(
+            "streamflow_bus_messages_publishing_errors",
+            "Message bus publishing errors",
             new CounterConfiguration {LabelNames = new[] {"exchange"}});
 
         private readonly Histogram _messageConsumerHistogram = Metrics.CreateHistogram(
@@ -58,8 +72,10 @@ namespace StreamFlow.RabbitMq.Prometheus
             "streamflow_publisher_pool_in_use",
             "Publishers which are currently created by pool and are used");
 
-        public IDurationMetric Publishing(string exchangeName)
+        public IDurationMetric Publishing(string exchangeName, bool publishedByBus)
         {
+            if (publishedByBus)
+                return new DurationMetric(_publishingByBusHistogram, exchangeName);
             return new DurationMetric(_publishingHistogram, exchangeName);
         }
 
@@ -70,11 +86,20 @@ namespace StreamFlow.RabbitMq.Prometheus
                 .Observe(duration.TotalSeconds);
         }
 
-        public void PublishingError(string exchangeName)
+        public void PublishingError(string exchangeName, bool publishedByBus)
         {
-            _publishingErrorCounter
-                .Labels(exchangeName)
-                .Inc();
+            if (publishedByBus)
+            {
+                _publishingErrorCounter
+                    .Labels(exchangeName)
+                    .Inc();
+            }
+            else
+            {
+                _publishingByBusErrorCounter
+                    .Labels(exchangeName)
+                    .Inc();
+            }
         }
 
         public IDurationMetric Consuming(string exchangeName, string queue)
@@ -89,12 +114,12 @@ namespace StreamFlow.RabbitMq.Prometheus
                 .Inc();
         }
 
-        public void BusPublishing()
+        public void PublishingByBus()
         {
             _busPublishingCounter.Inc();
         }
 
-        public void BusPublishingError()
+        public void PublishingByBusError()
         {
             _busPublishingErrorCounter.Inc();
         }

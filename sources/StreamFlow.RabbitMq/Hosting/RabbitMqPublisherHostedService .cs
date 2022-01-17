@@ -11,6 +11,7 @@ internal class RabbitMqPublisherHostedService : IHostedService
     private readonly IRabbitMqPublisherChannel _channel;
     private readonly IRabbitMqMetrics _metrics;
     private readonly ILogger<RabbitMqPublisherHostedService> _logger;
+    private readonly ManualResetEventSlim _publisherCompleted = new ();
 
     public RabbitMqPublisherHostedService(IServiceProvider services, IRabbitMqPublisherChannel channel, IRabbitMqMetrics metrics, ILogger<RabbitMqPublisherHostedService> logger)
     {
@@ -32,7 +33,12 @@ internal class RabbitMqPublisherHostedService : IHostedService
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogWarning("Stopping RabbitMqPublisherHostedService");
+
         _channel.Complete();
+
+        // wait as much as possible.. we do not want to lose messages
+        _publisherCompleted.Wait(CancellationToken.None);
+
         return Task.CompletedTask;
     }
 
@@ -45,8 +51,9 @@ internal class RabbitMqPublisherHostedService : IHostedService
             using var scope = _services.CreateScope();
             var publisher = scope.ServiceProvider.GetRequiredService<IPublisher>();
 
-            var channel = _channel.ReadAllAsync(cancellationToken);
-            await foreach (var item in channel.WithCancellation(cancellationToken))
+            // do not use cancellation token here - if service is stopping
+            // we still want to finish queue
+            await foreach (var item in _channel.ReadAllAsync(CancellationToken.None))
             {
                 if (item == null)
                     continue;
@@ -58,17 +65,21 @@ internal class RabbitMqPublisherHostedService : IHostedService
                 {
                     try
                     {
+                        var options = item.Options ?? new PublishOptions();
+                        options.BusPublisher = true;
+                        options.MetricsPrefix = "bus:";
+
                         await publisher
-                            .PublishAsync(item.Message, item.Options)
+                            .PublishAsync(item.Message, options)
                             .ConfigureAwait(false);
 
                         published = true;
 
-                        _metrics.BusPublishing();
+                        _metrics.PublishingByBus();
                     }
                     catch (Exception e)
                     {
-                        _metrics.BusPublishingError();
+                        _metrics.PublishingByBusError();
 
                         if (failedRetries % divider == 0)
                         {
@@ -82,7 +93,11 @@ internal class RabbitMqPublisherHostedService : IHostedService
                             divider += 30;
                         }
 
-                        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                        // if we are in error mode and cancellation is requested - not much we can do here..
+                        // just return from method
+                        if (cancellationToken.IsCancellationRequested) return;
+
+                        await Sleep(cancellationToken).ConfigureAwait(false);
                     }
                 }
             }
@@ -97,11 +112,25 @@ internal class RabbitMqPublisherHostedService : IHostedService
         }
         finally
         {
+            _publisherCompleted.Set();
+
             // mark bus as completed to avoid message accumulation
             _channel.Complete();
 
             _logger.LogWarning(lastException, "RabbitMqPublisherHostedService stopped.");
         }
     }
-}
 
+    private static async Task Sleep(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // use cancellation token here to get out of sleep as soon as possible
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            //
+        }
+    }
+}

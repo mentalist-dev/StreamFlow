@@ -11,11 +11,11 @@ public class Program
     public static async Task Main(string[] args)
     {
         var host = CreateHostBuilder(args).Build();
-
+        
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.MigrateAsync().ConfigureAwait(false);
-
+        
         await host.RunAsync().ConfigureAwait(false);
     }
 

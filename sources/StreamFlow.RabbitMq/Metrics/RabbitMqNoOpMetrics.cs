@@ -3,7 +3,7 @@ namespace StreamFlow.RabbitMq;
 
 internal class RabbitMqNoOpMetrics : IRabbitMqMetrics
 {
-    public IDurationMetric? Publishing(string exchangeName)
+    public IDurationMetric? Publishing(string exchangeName, bool publishedByBus)
     {
         return null;
     }
@@ -12,7 +12,7 @@ internal class RabbitMqNoOpMetrics : IRabbitMqMetrics
     {
     }
 
-    public void PublishingError(string exchangeName)
+    public void PublishingError(string exchangeName, bool publishedByBus)
     {
     }
 
@@ -25,11 +25,11 @@ internal class RabbitMqNoOpMetrics : IRabbitMqMetrics
     {
     }
 
-    public void BusPublishing()
+    public void PublishingByBus()
     {
     }
 
-    public void BusPublishingError()
+    public void PublishingByBusError()
     {
     }
 
