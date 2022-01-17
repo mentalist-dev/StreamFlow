@@ -13,7 +13,7 @@
     <PackageProjectUrl>https://github.com/mentalist-dev/StreamFlow</PackageProjectUrl>
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
     <PackageTags>Messaging RabbitMq Framework StreamFlow ServiceBus EventBus MediatR</PackageTags>
-    <Version>6.6.0</Version>
+    <Version>6.6.1</Version>
     <PackageReleaseNotes></PackageReleaseNotes>
     <AssemblyVersion>6.0.0.0</AssemblyVersion>
     <FileVersion>6.0.0.0</FileVersion>
@@ -26,6 +26,8 @@
   <PropertyGroup>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,6 +39,7 @@
 
   <ItemGroup>
     <PackageReference Include="MediatR" Version="10.0.1" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>

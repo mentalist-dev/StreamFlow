@@ -192,6 +192,97 @@ Even though those example middlewares are very simple in the real world scenario
 - metrics
 - ...
 
+## MediatR
+
+There is an implementation for MediatR library which might greatly simplify consumer implementation.
+
+Simply install package:
+
+```
+Install-Package StreamFlow.RabbitMq.MediatR
+```
+
+Library expects that MediatR itself is already configured and available in dependency injection container.
+
+### MediatR Notifications
+
+Request class must implement INotification interface as for example:
+
+```
+public class PingNotification : INotification
+{
+}
+```
+
+And then it can be used in StreamFlow:
+```
+    ....
+    .Consumers(builder => builder
+        .AddNotification<PingNotification>()
+    )
+    ....
+```
+
+## MediatR Request without response
+
+Request class must implement IRequest interface as for example:
+
+```
+public class PingRequest : IRequest
+{
+}
+```
+
+And then it can be used in StreamFlow:
+```
+    ....
+    .Consumers(builder => builder
+        .AddRequest<PingRequest>()
+    )
+    ....
+```
+
+## MediatR Request with response
+
+Request class must implement IRequest interface as for example:
+
+```
+public class PongResponse
+{
+}
+
+public class PingPongRequest : IRequest<PongResponse>
+{
+}
+```
+
+And then it can be used in StreamFlow:
+```
+    ....
+    .Consumers(builder => builder
+        .AddRequest<PingPongRequest, PongResponse>()
+    )
+    ....
+```
+
+However in this case you get an additional behavior: response is sent back using RabbitMQ publisher bus.
+For this to work you also need to enable publisher host (see EnablePublisherHost call):
+
+```
+services.AddStreamFlow(transport =>
+{
+    transport
+        .UseRabbitMq(mq => mq
+            .Connection("localhost", "guest", "guest")
+            .EnableConsumerHost(consumer => consumer.Prefetch(5))
+            .WithPrometheusMetrics()
+            .WithPublisherOptions(publisher => publisher
+                .EnablePublisherHost()
+            )
+        )
+}    
+```
+
 ## Error Handling
 
 Every application deals with errors. I am pretty sure - RabbitMQ handlers can get into multiple exceptional cases.

@@ -80,6 +80,8 @@ internal class RabbitMqChannel : IDisposable
         var properties = Channel.CreateBasicProperties();
         message.MapTo(properties);
 
+
+
         var exchange = message.Exchange ?? string.Empty;
         var routingKey = message.RoutingKey;
         if (string.IsNullOrWhiteSpace(routingKey))

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -9,6 +10,8 @@ namespace StreamFlow.RabbitMq
 {
     internal class RabbitMqPublisher : IPublisher, IDisposable
     {
+        private static readonly string HostName = Dns.GetHostName();
+
         private readonly object _lock = new();
         private readonly IServiceProvider _services;
         private readonly IStreamFlowPublisherPipe _pipe;
@@ -166,7 +169,8 @@ namespace StreamFlow.RabbitMq
                     .WithRoutingKey(routingKey)
                     .WithExchange(exchange)
                     .WithContentType(contentType)
-                    .SetHeader("SF:PublishTime", DateTime.UtcNow.ToString("O"));
+                    .SetHeader("SF:PublishTime", DateTime.UtcNow.ToString("O"))
+                    .SetHeader("SF:PublisherHostName", HostName);
 
                 var headers = options?.Headers;
                 if (headers != null)
