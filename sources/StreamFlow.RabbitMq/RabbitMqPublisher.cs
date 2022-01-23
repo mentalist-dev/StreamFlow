@@ -69,7 +69,7 @@ internal class RabbitMqPublisher : IPublisher, IDisposable
             _metrics.PublishingEvent(exchangeName, $"{metricsPrefix}channel:get", timer.Elapsed);
             timer.Restart();
 
-            request.Response = channel.Publish(message, isMandatory, waitForConfirmation, waitForConfirmationTimeout, _metrics);
+            request.Response = channel.Publish(message, isMandatory, waitForConfirmation, waitForConfirmationTimeout, _metrics, metricsPrefix);
 
             _metrics.PublishingEvent(exchangeName, $"{metricsPrefix}channel:publish", timer.Elapsed);
             timer.Stop();

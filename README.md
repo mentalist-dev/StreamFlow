@@ -283,6 +283,91 @@ services.AddStreamFlow(transport =>
 }    
 ```
 
+## Metrics
+
+Library has a support for various metrics which represents various information about insights of publishers and consumers.
+Out of the box there is an implementation for Prometheus metrics, but definitelly its not limited to it.
+
+In order to enable metrics, add Prometheus package:
+
+```
+PM> Install-Package StreamFlow.RabbitMq.Prometheus
+```
+
+And enable metrics when configuring RabbitMQ (see: WithPrometheusMetrics):
+
+```
+services.AddStreamFlow(streamFlowOptions, transport =>
+{
+    transport
+        .UseRabbitMq(mq => mq
+            .Connection(options.Host, options.Username, options.Password, options.VirtualHost)
+            .WithPrometheusMetrics()
+            ....
+        );
+});
+```
+
+### Prometheus metrics
+
+- streamflow_messages_published
+    
+    histogram, represents published message counts and durations (seconds)
+
+    labels: exchange, state [completed or failed]
+    
+- streamflow_bus_messages_published
+
+    histogram, represents published message counts and durations (seconds) when using publisher host
+
+    labels: exchange, state [completed or failed]
+
+- streamflow_messages_publishing_events 
+    
+    histogram, represents various events happening during publishing process, like channel creation, preparations, serialization, transaction commit and so on, helps to see if there are any bottlenecks in publisher process
+
+    labels: exchange, event
+
+- streamflow_messages_publishing_errors
+
+    counter, represents exceptions happened during message publishing
+
+    labels: exchange
+
+- streamflow_bus_messages_publishing_errors
+
+    counter, represents exceptions happened during message publishing when publisher host is used
+
+    labels: exchange
+
+- streamflow_messages_consumed
+
+    histogram, consumed message count and consumer durations (seconds)
+
+    labels: exchange, queue, state
+
+- streamflow_messages_consumed_errors
+
+    counter, represents exceptions got during consumer process
+    
+    labels: exchange, queue
+
+- streamflow_messages_bus_publishing
+
+    counter, shows how many messages are published using publisher host
+
+- streamflow_messages_bus_publishing_errors
+
+    counter, represents publishing over publisher host errors, since publisher host channel is bounded - it will start increasing when publisher host is receiving more messasges than is able to actually send to RabbitMQ
+
+-  streamflow_publisher_pool_size
+
+    counter, when using publisher pooling, shows pool size (publishers created but currently not used)
+
+- streamflow_publisher_pool_in_use
+
+    counter, when using publisher pooling, shows how many publisher instances are currently in use
+
 ## Error Handling
 
 Every application deals with errors. I am pretty sure - RabbitMQ handlers can get into multiple exceptional cases.

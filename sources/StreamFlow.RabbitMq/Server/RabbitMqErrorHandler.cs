@@ -71,7 +71,7 @@ internal class RabbitMqErrorHandler: IRabbitMqErrorHandler
             EnsureErrorQueueExists(consumerRegistration, errorQueueName);
 
             using var rabbitmq = _connection.CreateChannel();
-            rabbitmq.Send(@event.Body, properties, errorQueueName, null, _metrics);
+            rabbitmq.Send(@event.Body, properties, errorQueueName, null, _metrics, "err:");
         }
         catch (Exception e)
         {

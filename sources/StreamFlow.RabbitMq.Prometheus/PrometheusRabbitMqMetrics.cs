@@ -58,7 +58,7 @@ namespace StreamFlow.RabbitMq.Prometheus
 
         private readonly Counter _busPublishingCounter = Metrics.CreateCounter(
             "streamflow_messages_bus_publishing",
-            "Message bus publishing errors");
+            "Message published over publisher host");
 
         private readonly Counter _busPublishingErrorCounter = Metrics.CreateCounter(
             "streamflow_messages_bus_publishing_errors",

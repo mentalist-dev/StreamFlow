@@ -44,8 +44,6 @@ internal class RabbitMqChannel : IDisposable
 
     public bool IsOpen => Channel.IsOpen;
 
-    internal event EventHandler<EventArgs>? Disposed;
-
     public void Close(ushort replyCode, string replyText)
     {
         Channel.Close(replyCode, replyText);
@@ -64,12 +62,15 @@ internal class RabbitMqChannel : IDisposable
 
         Channel.Dispose();
 
-        Disposed?.Invoke(this, EventArgs.Empty);
-
         GC.SuppressFinalize(this);
     }
 
-    public PublishResponse Publish(IMessageContext message, bool isMandatory, bool waitForConfirmation, TimeSpan? waitForConfirmationTimeout, IRabbitMqMetrics metrics)
+    public PublishResponse Publish(IMessageContext message
+        , bool isMandatory
+        , bool waitForConfirmation
+        , TimeSpan? waitForConfirmationTimeout
+        , IRabbitMqMetrics metrics
+        , string? metricsPrefix = null)
     {
         var timer = Stopwatch.StartNew();
 
@@ -80,8 +81,6 @@ internal class RabbitMqChannel : IDisposable
         var properties = Channel.CreateBasicProperties();
         message.MapTo(properties);
 
-
-
         var exchange = message.Exchange ?? string.Empty;
         var routingKey = message.RoutingKey;
         if (string.IsNullOrWhiteSpace(routingKey))
@@ -89,17 +88,17 @@ internal class RabbitMqChannel : IDisposable
 
         var body = message.Content;
 
-        metrics.PublishingEvent(exchange, "channel:properties", timer.Elapsed);
+        metrics.PublishingEvent(exchange, $"{metricsPrefix}channel:properties", timer.Elapsed);
         timer.Restart();
 
         Channel.BasicPublish(exchange, routingKey, isMandatory, properties, body);
 
-        metrics.PublishingEvent(exchange, "channel:basic-publish", timer.Elapsed);
+        metrics.PublishingEvent(exchange, $"{metricsPrefix}channel:basic-publish", timer.Elapsed);
         timer.Restart();
 
         Commit(waitForConfirmation, waitForConfirmationTimeout);
 
-        metrics.PublishingEvent(exchange, "channel:commit", timer.Elapsed);
+        metrics.PublishingEvent(exchange, $"{metricsPrefix}channel:commit", timer.Elapsed);
         timer.Restart();
 
         if (_confirmation == ConfirmationType.PublisherConfirms)
@@ -109,7 +108,7 @@ internal class RabbitMqChannel : IDisposable
                 response.Acknowledged(ack.DeliveryTag, ack.Multiple);
             }
 
-            metrics.PublishingEvent(exchange, "channel:ack-collect", timer.Elapsed);
+            metrics.PublishingEvent(exchange, $"{metricsPrefix}channel:ack-collect", timer.Elapsed);
             timer.Restart();
 
             while (_rejected.TryDequeue(out var nack))
@@ -117,14 +116,19 @@ internal class RabbitMqChannel : IDisposable
                 response.Rejected(nack.DeliveryTag, nack.Multiple);
             }
 
-            metrics.PublishingEvent(exchange, "channel:nack-collect", timer.Elapsed);
+            metrics.PublishingEvent(exchange, $"{metricsPrefix}channel:nack-collect", timer.Elapsed);
             timer.Restart();
         }
 
         return response;
     }
 
-    public PublishResponse Send(ReadOnlyMemory<byte> body, IBasicProperties properties, string queueName, TimeSpan? waitForConfirmationTimeout, IRabbitMqMetrics metrics)
+    public PublishResponse Send(ReadOnlyMemory<byte> body
+        , IBasicProperties properties
+        , string queueName
+        , TimeSpan? waitForConfirmationTimeout
+        , IRabbitMqMetrics metrics
+        , string? metricsPrefix)
     {
         var timer = Stopwatch.StartNew();
 
@@ -135,12 +139,12 @@ internal class RabbitMqChannel : IDisposable
         Channel.BasicPublish(string.Empty, queueName, true, properties, body);
 
         const string exchangeName = "(AMQP default)";
-        metrics.PublishingEvent(exchangeName, "channel:basic-publish", timer.Elapsed);
+        metrics.PublishingEvent(exchangeName, $"{metricsPrefix}channel:basic-publish", timer.Elapsed);
         timer.Restart();
 
         Commit(true, waitForConfirmationTimeout);
 
-        metrics.PublishingEvent(exchangeName, "channel:commit", timer.Elapsed);
+        metrics.PublishingEvent(exchangeName, $"{metricsPrefix}channel:commit", timer.Elapsed);
         timer.Restart();
 
         if (_confirmation == ConfirmationType.PublisherConfirms)
@@ -150,7 +154,7 @@ internal class RabbitMqChannel : IDisposable
                 response.Acknowledged(ack.DeliveryTag, ack.Multiple);
             }
 
-            metrics.PublishingEvent(exchangeName, "channel:ack-collect", timer.Elapsed);
+            metrics.PublishingEvent(exchangeName, $"{metricsPrefix}channel:ack-collect", timer.Elapsed);
             timer.Restart();
 
             while (_rejected.TryDequeue(out var nack))
@@ -158,7 +162,7 @@ internal class RabbitMqChannel : IDisposable
                 response.Rejected(nack.DeliveryTag, nack.Multiple);
             }
 
-            metrics.PublishingEvent(exchangeName, "channel:nack-collect", timer.Elapsed);
+            metrics.PublishingEvent(exchangeName, $"{metricsPrefix}channel:nack-collect", timer.Elapsed);
             timer.Restart();
         }
 
