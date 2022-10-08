@@ -1,15 +1,11 @@
-using System;
-using Microsoft.Extensions.DependencyInjection;
+namespace StreamFlow.RabbitMq.Prometheus;
 
-namespace StreamFlow.RabbitMq.Prometheus
+public static class ServiceCollectionExtensions
 {
-    public static class ServiceCollectionExtensions
+    // ReSharper disable once InconsistentNaming
+    public static IStreamFlowRabbitMq WithPrometheusMetrics(this IStreamFlowRabbitMq registry)
     {
-        // ReSharper disable once InconsistentNaming
-        public static IStreamFlowRabbitMq WithPrometheusMetrics(this IStreamFlowRabbitMq registry)
-        {
-            registry.WithMetricsProvider<PrometheusRabbitMqMetrics>();
-            return registry;
-        }
+        registry.WithMetricsProvider<PrometheusRabbitMqMetrics>();
+        return registry;
     }
 }

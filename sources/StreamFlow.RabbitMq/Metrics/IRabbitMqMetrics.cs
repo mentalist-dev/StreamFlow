@@ -3,16 +3,14 @@ namespace StreamFlow.RabbitMq;
 
 public interface IRabbitMqMetrics
 {
-    IDurationMetric? Publishing(string exchangeName, bool publishedByBus);
-    void PublishingEvent(string exchangeName, string eventName, TimeSpan duration);
-    void PublishingError(string exchangeName, bool publishedByBus);
+    IDurationMetric? PublicationCreated(string exchangeName);
+    IDurationMetric? PublicationConsumed(string exchangeName);
+    IDurationMetric? Published(string exchangeName);
 
-    IDurationMetric? Consuming(string exchangeName, string queue);
-    void MessageConsumerError(string exchangeName, string queue);
+    IDurationMetric? Consumed(string exchangeName, string queueName);
+    void ConsumerError(string exchangeName, string queueName);
+    void ConsumerCancelled(string exchangeName, string queueName);
 
-    void PublishingByBus();
-    void PublishingByBusError();
-
-    void ReportPublisherPoolSize(int poolSize);
-    void ReportPublisherPoolInUse(int publishersInUse);
+    void ErrorQueuePublished(string originalExchangeName, string originalQueueName);
+    void ErrorQueueFailed(string originalExchangeName, string originalQueueName);
 }

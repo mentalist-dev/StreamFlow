@@ -20,7 +20,7 @@ namespace StreamFlow.Outbox
 
         public async Task PublishAsync<T>(T message, PublishOptions? options = null, SchedulingOptions? scheduling = null, bool triggerSaveChanges = true, CancellationToken cancellationToken = default) where T : class
         {
-            var address = options?.TargetAddress;
+            var address = options?.Exchange;
             if (address == null)
             {
                 address = _addressProvider.Get(message, options);

@@ -1,52 +1,51 @@
-namespace StreamFlow.Pipes
+namespace StreamFlow.Pipes;
+
+public interface IStreamFlowConsumerPipe
 {
-    public interface IStreamFlowConsumerPipe
+    Task ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction);
+}
+
+public interface IStreamFlowPublisherPipe
+{
+    Task ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction);
+}
+
+public class StreamFlowPipe: IStreamFlowConsumerPipe, IStreamFlowPublisherPipe
+{
+    private readonly List<Func<IServiceProvider, IMessageContext, Func<IMessageContext, Task>, Task>> _actions = new();
+
+    Task IStreamFlowConsumerPipe.ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction)
     {
-        Task ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction);
+        return ExecuteAsync(provider, context, finalAction);
     }
 
-    public interface IStreamFlowPublisherPipe
+    Task IStreamFlowPublisherPipe.ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction)
     {
-        Task ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction);
+        return ExecuteAsync(provider, context, finalAction);
     }
 
-    public class StreamFlowPipe: IStreamFlowConsumerPipe, IStreamFlowPublisherPipe
+    public void AddRange(IEnumerable<Func<IServiceProvider, IMessageContext, Func<IMessageContext, Task>, Task>> actions)
     {
-        private readonly List<Func<IServiceProvider, IMessageContext, Func<IMessageContext, Task>, Task>> _actions = new();
+        _actions.AddRange(actions);
+    }
 
-        Task IStreamFlowConsumerPipe.ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction)
+    private Task ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction)
+    {
+        var action = finalAction;
+
+        for (int i = _actions.Count - 1; i >= 0; i--)
         {
-            return ExecuteAsync(provider, context, finalAction);
+            var middleware = _actions[i];
+            action = Build(provider, middleware, action);
         }
 
-        Task IStreamFlowPublisherPipe.ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction)
-        {
-            return ExecuteAsync(provider, context, finalAction);
-        }
+        return action(context);
+    }
 
-        public void AddRange(IEnumerable<Func<IServiceProvider, IMessageContext, Func<IMessageContext, Task>, Task>> actions)
-        {
-            _actions.AddRange(actions);
-        }
-
-        private Task ExecuteAsync(IServiceProvider provider, IMessageContext context, Func<IMessageContext, Task> finalAction)
-        {
-            var action = finalAction;
-
-            for (int i = _actions.Count - 1; i >= 0; i--)
-            {
-                var middleware = _actions[i];
-                action = Build(provider, middleware, action);
-            }
-
-            return action(context);
-        }
-
-        private Func<IMessageContext, Task> Build(IServiceProvider provider
-            , Func<IServiceProvider, IMessageContext, Func<IMessageContext, Task>, Task> middleware
-            , Func<IMessageContext, Task> next)
-        {
-            return context => middleware(provider, context, next);
-        }
+    private Func<IMessageContext, Task> Build(IServiceProvider provider
+        , Func<IServiceProvider, IMessageContext, Func<IMessageContext, Task>, Task> middleware
+        , Func<IMessageContext, Task> next)
+    {
+        return context => middleware(provider, context, next);
     }
 }

@@ -1,8 +1,10 @@
+using StreamFlow.Tests.Contracts;
+
 namespace StreamFlow.Tests.AspNetCore.Application.Errors
 {
-    public class RaiseRequestConsumer: IConsumer<RaiseRequest>
+    public class RaiseRequestConsumer: IConsumer<RaiseErrorRequest>
     {
-        public Task Handle(IMessage<RaiseRequest> message, CancellationToken cancellationToken)
+        public Task Handle(IMessage<RaiseErrorRequest> message, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }

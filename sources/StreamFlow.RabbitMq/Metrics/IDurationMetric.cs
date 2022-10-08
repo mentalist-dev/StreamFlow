@@ -3,5 +3,5 @@ namespace StreamFlow.RabbitMq;
 
 public interface IDurationMetric : IDisposable
 {
-    void Complete();
+    void Complete(string? stateName = null);
 }

@@ -4,24 +4,7 @@ namespace StreamFlow
 {
     public interface IPublisher
     {
-        Task<PublishResponse> PublishAsync<T>(T message, PublishOptions? options = null) where T : class;
-    }
-
-    public class PublishOptions
-    {
-        public Dictionary<string, object> Headers { get; } = new();
-
-        public string? CorrelationId { get; set; }
-        public string? RoutingKey { get; set; }
-        public bool IsMandatory { get; set; }
-
-        public bool WaitForConfirmation { get; set; }
-        public TimeSpan? WaitForConfirmationTimeout { get; set; }
-
-        public string? TargetAddress { get; set; }
-
-        internal string? MetricsPrefix { get; set; }
-        internal bool BusPublisher { get; set; }
+        Task PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T : class;
     }
 
     public class PublishResponse

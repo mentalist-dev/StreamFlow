@@ -1,15 +1,12 @@
-using System;
+namespace StreamFlow;
 
-namespace StreamFlow
+public interface IMessageSerializer
 {
-    public interface IMessageSerializer
-    {
-        ReadOnlyMemory<byte> Serialize<T>(T message);
+    ReadOnlyMemory<byte> Serialize<T>(T message);
 
-        T? Deserialize<T>(ReadOnlyMemory<byte> body);
+    T? Deserialize<T>(ReadOnlyMemory<byte> body);
 
-        T? Deserialize<T>(ReadOnlyMemory<byte> body, Type returnType);
+    T? Deserialize<T>(ReadOnlyMemory<byte> body, Type returnType);
 
-        string GetContentType<T>();
-    }
+    string GetContentType();
 }

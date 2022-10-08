@@ -71,10 +71,10 @@ namespace StreamFlow.Outbox
                         ? serializer.Deserialize<PublishOptions>(outboxMessage.Options)
                         : null;
 
-                    if (options?.TargetAddress == null)
+                    if (options?.Exchange == null)
                     {
                         options ??= new PublishOptions();
-                        options.TargetAddress = outboxMessage.TargetAddress;
+                        options.Exchange = outboxMessage.TargetAddress;
                     }
 
                     await publisher
