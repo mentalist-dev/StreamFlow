@@ -4,7 +4,6 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using StreamFlow.Configuration;
-using StreamFlow.RabbitMq.Connection;
 using StreamFlow.Server;
 
 namespace StreamFlow.RabbitMq.Server;

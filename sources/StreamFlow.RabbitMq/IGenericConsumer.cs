@@ -1,6 +1,5 @@
-namespace StreamFlow.RabbitMq
+namespace StreamFlow.RabbitMq;
+
+public interface IGenericConsumer
 {
-    public interface IGenericConsumer
-    {
-    }
 }

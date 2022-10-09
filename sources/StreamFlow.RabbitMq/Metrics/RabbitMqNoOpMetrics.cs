@@ -3,41 +3,43 @@ namespace StreamFlow.RabbitMq;
 
 internal class RabbitMqNoOpMetrics : IRabbitMqMetrics
 {
-    public IDurationMetric? Publishing(string exchangeName, bool publishedByBus)
+    public IDurationMetric? PublicationCreated(string exchangeName)
     {
         return null;
     }
 
-    public void PublishingEvent(string exchangeName, string eventName, TimeSpan duration)
-    {
-    }
-
-    public void PublishingError(string exchangeName, bool publishedByBus)
-    {
-    }
-
-    public IDurationMetric? Consuming(string exchangeName, string queue)
+    public IDurationMetric? PublicationConsumed(string exchangeName)
     {
         return null;
     }
 
-    public void MessageConsumerError(string exchangeName, string queue)
+    public IDurationMetric? Published(string exchangeName)
     {
+        return null;
     }
 
-    public void PublishingByBus()
+    public IDurationMetric? Consumed(string exchangeName, string queueName)
     {
+        return null;
     }
 
-    public void PublishingByBusError()
+    public void ConsumerError(string exchangeName, string queueName)
     {
+        //
     }
 
-    public void ReportPublisherPoolSize(int poolSize)
+    public void ConsumerCancelled(string exchangeName, string queueName)
     {
+        //
     }
 
-    public void ReportPublisherPoolInUse(int publishersInUse)
+    public void ErrorQueuePublished(string originalExchangeName, string originalQueueName)
     {
+        //
+    }
+
+    public void ErrorQueueFailed(string originalExchangeName, string originalQueueName)
+    {
+        //
     }
 }

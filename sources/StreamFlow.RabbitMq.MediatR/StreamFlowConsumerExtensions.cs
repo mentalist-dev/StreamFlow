@@ -21,6 +21,7 @@ public static class StreamFlowConsumerExtensions
 
     public static IStreamFlowConsumer AddRequest<TRequest, TResponse>(this IStreamFlowConsumer builder, Action<IConsumerOptionsBuilder>? consumer = null)
         where TRequest : IRequest<TResponse>
+        where TResponse: class
     {
         builder.Add<TRequest, RequestConsumer<TRequest, TResponse>>(consumer);
         return builder;

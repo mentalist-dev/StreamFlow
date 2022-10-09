@@ -22,14 +22,15 @@ internal class RequestConsumer<TRequest> : IConsumer<TRequest>, IGenericConsumer
 }
 internal class RequestConsumer<TRequest, TResponse> : IConsumer<TRequest>, IGenericConsumer
     where TRequest: IRequest<TResponse>
+    where TResponse: class
 {
     private readonly IMediator _mediator;
-    private readonly IRabbitMqPublisherBus _bus;
+    private readonly IRabbitMqPublisher _publisher;
 
-    public RequestConsumer(IMediator mediator, IRabbitMqPublisherBus bus)
+    public RequestConsumer(IMediator mediator, IRabbitMqPublisher publisher)
     {
         _mediator = mediator;
-        _bus = bus;
+        _publisher = publisher;
     }
 
     public async Task Handle(IMessage<TRequest> message, CancellationToken cancellationToken)
@@ -40,11 +41,11 @@ internal class RequestConsumer<TRequest, TResponse> : IConsumer<TRequest>, IGene
 
         if (response != null)
         {
-            _bus.Publish(response, new PublishOptions
+            await _publisher.PublishAsync(response, new PublishOptions
             {
                 CorrelationId = message.Context.CorrelationId,
                 IsMandatory = true
-            });
+            }, cancellationToken);
         }
     }
 }
