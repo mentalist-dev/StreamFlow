@@ -14,7 +14,7 @@
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
     <PackageTags>Messaging RabbitMq Framework StreamFlow ServiceBus EventBus MediatR</PackageTags>
     <PackageReleaseNotes></PackageReleaseNotes>
-    <Version>7.0.0</Version>
+    <Version>7.1.0</Version>
     <AssemblyVersion>7.0.0.0</AssemblyVersion>
     <FileVersion>7.0.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>

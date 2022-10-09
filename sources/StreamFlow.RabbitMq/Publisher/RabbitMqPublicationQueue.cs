@@ -11,7 +11,7 @@ internal interface IRabbitMqPublicationQueue
 
 internal class RabbitMqPublicationQueue : IRabbitMqPublicationQueue
 {
-    private readonly Channel<RabbitMqPublication> _channel = Channel.CreateBounded<RabbitMqPublication>(10000);
+    private readonly Channel<RabbitMqPublication> _channel = Channel.CreateBounded<RabbitMqPublication>(100_000);
 
     public void Publish(RabbitMqPublication message)
     {

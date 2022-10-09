@@ -196,7 +196,7 @@ internal class RabbitMqPublisherHost : IHostedService
     {
         if (e.Reason != PublicationExceptionReason.Returned)
         {
-            if (task.Context.IgnoreNoRoutes)
+            if (task.Context.IgnoreNoRoutes || task.FireAndForget)
             {
                 task.Complete();
                 return true;
@@ -209,13 +209,10 @@ internal class RabbitMqPublisherHost : IHostedService
             return false;
         }
 
-        if (e.Reason == PublicationExceptionReason.ExchangeNotFound)
+        if (e.Reason == PublicationExceptionReason.ExchangeNotFound && (task.Context.IgnoreNoRoutes || task.FireAndForget))
         {
-            if (task.Context.IgnoreNoRoutes)
-            {
-                task.Complete();
-                return true;
-            }
+            task.Complete();
+            return true;
         }
 
         // message is not route-able

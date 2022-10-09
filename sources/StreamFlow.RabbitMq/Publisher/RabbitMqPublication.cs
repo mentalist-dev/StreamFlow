@@ -8,14 +8,16 @@ public sealed class RabbitMqPublication
     private bool _finished;
 
     public RabbitMqPublisherMessageContext Context { get; }
+    public bool FireAndForget { get; }
     public TaskCompletionSource Completion { get; }
     public CancellationToken CancellationToken { get; }
 
-    public RabbitMqPublication(IDurationMetric? duration, RabbitMqPublisherMessageContext context, CancellationToken cancellationToken, TimeSpan? timeout)
+    public RabbitMqPublication(IDurationMetric? duration, RabbitMqPublisherMessageContext context, CancellationToken cancellationToken, TimeSpan? timeout, bool fireAndForget = false)
     {
         _duration = duration;
 
         Context = context;
+        FireAndForget = fireAndForget;
         Completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         _cts = cancellationToken != default

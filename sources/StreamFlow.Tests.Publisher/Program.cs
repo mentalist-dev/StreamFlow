@@ -44,6 +44,7 @@ while (!finished)
     Console.WriteLine("  B: start 10 threads for publications (any key will stop it)");
     Console.WriteLine("  C: publish to non existing exchange");
     Console.WriteLine("  D: publish error request (consumer will fail)");
+    Console.WriteLine("  E: start single threaded publications (sync) (any key will stop it)");
 
     var key = Console.ReadKey(false);
     Console.WriteLine();
@@ -59,7 +60,7 @@ while (!finished)
             }
             case ConsoleKey.A:
             {
-                await PublishMessages(provider, logger);
+                await PublishMessagesAsync(provider, logger);
 
                 break;
             }
@@ -78,6 +79,12 @@ while (!finished)
             case ConsoleKey.D:
             {
                 await PublishErrorRequest(provider, logger);
+
+                break;
+            }
+            case ConsoleKey.E:
+            {
+                PublishMessages(provider, logger);
 
                 break;
             }
@@ -103,7 +110,7 @@ foreach (var hostedService in hostedServices)
 cts.Cancel();
 cts.Dispose();
 
-async Task PublishMessages(ServiceProvider provider1, ILogger<Program> logs)
+async Task PublishMessagesAsync(ServiceProvider provider1, ILogger<Program> logs)
 {
     await using var scope = provider1.CreateAsyncScope();
     var publisher = scope.ServiceProvider.GetRequiredService<IRabbitMqPublisher>();
@@ -127,6 +134,33 @@ async Task PublishMessages(ServiceProvider provider1, ILogger<Program> logs)
         {
             Task.WaitAll(tasks.ToArray());
             tasks = new List<Task>();
+        }
+    }
+
+    // clean buffer
+    while (Console.KeyAvailable)
+    {
+        Console.ReadKey();
+    }
+}
+
+void PublishMessages(ServiceProvider provider1, ILogger<Program> logs)
+{
+    using var scope = provider1.CreateScope();
+    var publisher = scope.ServiceProvider.GetRequiredService<IRabbitMqPublisher>();
+
+    var count = 0;
+    while (!Console.KeyAvailable)
+    {
+        count += 1;
+        var request = new PingRequest { Timestamp = DateTime.Now };
+
+        publisher.Publish(request, new PublishOptions { Timeout = TimeSpan.FromSeconds(60) });
+
+        if (count % 100 == 0)
+        {
+            logs.LogInformation("Published {Count} messages", count);
+            // break;
         }
     }
 
