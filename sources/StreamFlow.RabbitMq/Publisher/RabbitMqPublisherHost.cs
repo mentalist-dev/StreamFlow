@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client.Exceptions;
-using StreamFlow.Pipes;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 
@@ -15,23 +13,17 @@ internal class RabbitMqPublisherHost : IHostedService
     private readonly CancellationTokenSource _cts = new();
 
     private readonly IRabbitMqPublicationQueue _channel;
-    private readonly IStreamFlowPublisherPipe _pipe;
     private readonly IRabbitMqPublisherConnection _connection;
-    private readonly IServiceProvider _services;
     private readonly IRabbitMqMetrics _metrics;
     private readonly ILogger<RabbitMqPublisher> _logger;
 
     public RabbitMqPublisherHost(IRabbitMqPublicationQueue channel
-        , IStreamFlowPublisherPipe pipe
         , IRabbitMqPublisherConnection connection
-        , IServiceProvider services
         , IRabbitMqMetrics metrics
         , ILogger<RabbitMqPublisher> logger)
     {
         _channel = channel;
-        _pipe = pipe;
         _connection = connection;
-        _services = services;
         _metrics = metrics;
         _logger = logger;
     }
@@ -144,17 +136,14 @@ internal class RabbitMqPublisherHost : IHostedService
         return channel;
     }
 
-    private async Task PublishMessageAsync(RabbitMqPublisherChannel channel, RabbitMqPublication publication)
+    private Task PublishMessageAsync(RabbitMqPublisherChannel channel, RabbitMqPublication publication)
     {
         if (publication.Context.DeclareExchange)
         {
             EnsureExchangeExists(publication.Context.Exchange);
         }
 
-        await using var scope = _services.CreateAsyncScope();
-        await _pipe
-            .ExecuteAsync(_services, publication.Context, ctx => channel.PublishAsync(ctx, publication))
-            .ConfigureAwait(false);
+        return channel.PublishAsync(publication);
     }
 
     private RabbitMqPublisherChannel CreateChannel()

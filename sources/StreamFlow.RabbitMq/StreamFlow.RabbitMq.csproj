@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFrameworks>net6.0</TargetFrameworks>
@@ -14,7 +14,7 @@
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
     <PackageTags>Messaging RabbitMq Framework StreamFlow ServiceBus EventBus</PackageTags>
     <PackageReleaseNotes></PackageReleaseNotes>
-    <Version>7.1.0</Version>
+    <Version>7.1.1</Version>
     <AssemblyVersion>7.0.0.0</AssemblyVersion>
     <FileVersion>7.0.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
@@ -47,9 +47,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>StreamFlow.Tests.AspNetCore</_Parameter1>
-    </AssemblyAttribute>
+    <InternalsVisibleTo Include="StreamFlow.Tests" />
+    <InternalsVisibleTo Include="StreamFlow.Tests.AspNetCore" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
 </Project>

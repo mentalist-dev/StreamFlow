@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using StreamFlow.Pipes;
 
 namespace StreamFlow.RabbitMq.Publisher;
 
@@ -15,18 +16,28 @@ internal class RabbitMqPublisher : IRabbitMqPublisher, IPublisher
     private static readonly string HostName = Dns.GetHostName();
 
     private readonly RabbitMqPublisherOptions _globalOptions;
+    private readonly IStreamFlowPublisherPipe _pipe;
     private readonly IRabbitMqPublicationQueue _queue;
     private readonly IRabbitMqConventions _conventions;
     private readonly IMessageSerializer _messageSerializer;
     private readonly IRabbitMqMetrics _metrics;
+    private readonly IServiceProvider _services;
 
-    public RabbitMqPublisher(RabbitMqPublisherOptions globalOptions, IRabbitMqPublicationQueue queue, IRabbitMqConventions conventions, IMessageSerializer messageSerializer, IRabbitMqMetrics metrics)
+    public RabbitMqPublisher(RabbitMqPublisherOptions globalOptions
+        , IStreamFlowPublisherPipe pipe
+        , IRabbitMqPublicationQueue queue
+        , IRabbitMqConventions conventions
+        , IMessageSerializer messageSerializer
+        , IRabbitMqMetrics metrics
+        , IServiceProvider services)
     {
         _globalOptions = globalOptions;
+        _pipe = pipe;
         _queue = queue;
         _conventions = conventions;
         _messageSerializer = messageSerializer;
         _metrics = metrics;
+        _services = services;
     }
 
     public void Publish<T>(T message, PublishOptions? options = null) where T : class
@@ -103,6 +114,11 @@ internal class RabbitMqPublisher : IRabbitMqPublisher, IPublisher
     {
         if (message == null) throw new ArgumentNullException(nameof(message));
 
+        return PublishInternalAsync(message, options, cancellationToken);
+    }
+
+    private Task PublishInternalAsync<T>(T message, PublishOptions? options, CancellationToken cancellationToken) where T : class
+    {
         var exchange = options?.Exchange ?? _conventions.GetExchangeName(message.GetType());
 
         // will measure the whole pipeline
@@ -162,12 +178,21 @@ internal class RabbitMqPublisher : IRabbitMqPublisher, IPublisher
             }
         }
 
-        var messageCompletion = new RabbitMqPublication(totalDuration, context, cancellationToken, options?.Timeout);
-
-        _queue.Publish(messageCompletion);
+        var task = _pipe.ExecuteAsync(_services, context, ctx => PublishInternalAsync(ctx, options, totalDuration, cancellationToken));
 
         duration?.Complete();
+        return task;
+    }
 
+    private Task PublishInternalAsync(IMessageContext ctx, PublishOptions? options, IDurationMetric? totalDuration, CancellationToken cancellationToken)
+    {
+        var messageCompletion = new RabbitMqPublication(totalDuration
+            , (RabbitMqPublisherMessageContext) ctx
+            , cancellationToken
+            , options?.Timeout
+        );
+
+        _queue.Publish(messageCompletion);
         return messageCompletion.Completion.Task;
     }
 }

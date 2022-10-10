@@ -70,8 +70,9 @@ internal sealed class RabbitMqPublisherChannel : IDisposable
         }
     }
 
-    public Task PublishAsync(IMessageContext context, RabbitMqPublication publication)
+    public Task PublishAsync(RabbitMqPublication publication)
     {
+        var context = publication.Context;
         var publicationId = Guid.NewGuid().ToString();
 
         var properties = Channel.CreateBasicProperties();
