@@ -44,7 +44,6 @@ while (!finished)
     Console.WriteLine("  B: start 10 threads for publications (any key will stop it)");
     Console.WriteLine("  C: publish to non existing exchange");
     Console.WriteLine("  D: publish error request (consumer will fail)");
-    Console.WriteLine("  E: start single threaded publications (sync) (any key will stop it)");
 
     var key = Console.ReadKey(false);
     Console.WriteLine();
@@ -79,12 +78,6 @@ while (!finished)
             case ConsoleKey.D:
             {
                 await PublishErrorRequest(provider, logger);
-
-                break;
-            }
-            case ConsoleKey.E:
-            {
-                PublishMessages(provider, logger);
 
                 break;
             }
@@ -144,33 +137,6 @@ async Task PublishMessagesAsync(ServiceProvider provider1, ILogger<Program> logs
     }
 }
 
-void PublishMessages(ServiceProvider provider1, ILogger<Program> logs)
-{
-    using var scope = provider1.CreateScope();
-    var publisher = scope.ServiceProvider.GetRequiredService<IRabbitMqPublisher>();
-
-    var count = 0;
-    while (!Console.KeyAvailable)
-    {
-        count += 1;
-        var request = new PingRequest { Timestamp = DateTime.Now };
-
-        publisher.Publish(request, new PublishOptions { Timeout = TimeSpan.FromSeconds(60) });
-
-        if (count % 100 == 0)
-        {
-            logs.LogInformation("Published {Count} messages", count);
-            // break;
-        }
-    }
-
-    // clean buffer
-    while (Console.KeyAvailable)
-    {
-        Console.ReadKey();
-    }
-}
-
 async Task PublishThreadedMessages(ServiceProvider provider1, ILogger<Program> logs)
 {
     await using var scope = provider1.CreateAsyncScope();
@@ -183,8 +149,9 @@ async Task PublishThreadedMessages(ServiceProvider provider1, ILogger<Program> l
     for (int i = 0; i < threads.Length; i++)
     {
         var threadNo = i;
-        threads[threadNo] = Task.Run(async () =>
+        threads[threadNo] = Task.Run(() =>
         {
+            var tasks = new List<Task>();
             var count = 0;
             while (!ct.IsCancellationRequested)
             {
@@ -192,11 +159,18 @@ async Task PublishThreadedMessages(ServiceProvider provider1, ILogger<Program> l
                 {
                     count += 1;
                     var request = new PingRequest { Timestamp = DateTime.Now };
-                    await publisher.PublishAsync(request, new PublishOptions { Timeout = TimeSpan.FromSeconds(60) });
+                    var task = publisher.PublishAsync(request, new PublishOptions { Timeout = TimeSpan.FromSeconds(60) });
+                    tasks.Add(task);
 
                     if (count % 100 == 0)
                     {
                         logs.LogInformation("[{Thread}] Published {Count} messages", threadNo, count);
+                    }
+
+                    if (tasks.Count >= 1000)
+                    {
+                        Task.WaitAll(tasks.ToArray());
+                        tasks = new List<Task>();
                     }
                 }
                 catch (Exception e)
@@ -204,6 +178,8 @@ async Task PublishThreadedMessages(ServiceProvider provider1, ILogger<Program> l
                     logs.LogError(e, "[{Thread}] failed to publish {MessageNo} message", threadNo, count);
                 }
             }
+
+            return Task.CompletedTask;
         });
     }
 

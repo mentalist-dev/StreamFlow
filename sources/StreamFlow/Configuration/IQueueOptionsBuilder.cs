@@ -1,11 +1,10 @@
-namespace StreamFlow.Configuration
+namespace StreamFlow.Configuration;
+
+public interface IQueueOptionsBuilder
 {
-    public interface IQueueOptionsBuilder
-    {
-        IQueueOptionsBuilder Durable(bool durable = true);
-        IQueueOptionsBuilder Exclusive(bool exclusive = true);
-        IQueueOptionsBuilder AutoDelete(bool autoDelete = true);
-        IQueueOptionsBuilder Argument(string key, object value);
-        IQueueOptionsBuilder Quorum(int? initialGroupSize = null, bool enabled = true);
-    }
+    IQueueOptionsBuilder Durable(bool durable = true);
+    IQueueOptionsBuilder Exclusive(bool exclusive = true);
+    IQueueOptionsBuilder AutoDelete(bool autoDelete = true);
+    IQueueOptionsBuilder Argument(string key, object value);
+    IQueueOptionsBuilder Quorum(int? initialGroupSize = null, bool enabled = true);
 }

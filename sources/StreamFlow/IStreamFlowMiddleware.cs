@@ -1,10 +1,7 @@
-using System;
-using System.Threading.Tasks;
 
-namespace StreamFlow
+namespace StreamFlow;
+
+public interface IStreamFlowMiddleware
 {
-    public interface IStreamFlowMiddleware
-    {
-        Task Invoke(IMessageContext context, Func<IMessageContext, Task> next);
-    }
+    Task Invoke(IMessageContext context, Func<IMessageContext, Task> next);
 }
