@@ -125,7 +125,19 @@ async Task PublishMessagesAsync(ServiceProvider provider1, ILogger<Program> logs
 
         if (tasks.Count >= 1000)
         {
-            Task.WaitAll(tasks.ToArray());
+            foreach (var t in tasks)
+            {
+                try
+                {
+                    await t;
+                }
+                catch (Exception e)
+                {
+                    logs.LogError(e, "Publish failed");
+                    // handle publication errors
+                }
+            }
+            //Task.WaitAll(tasks.ToArray());
             tasks = new List<Task>();
         }
     }

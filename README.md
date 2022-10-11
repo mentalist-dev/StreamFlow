@@ -7,9 +7,9 @@ However I was never been able to use them as is without overriding multiple meth
 
 ## Install via NuGet
 
-If you want to include the HTTP sink in your project, you can [install it directly from NuGet](https://www.nuget.org/packages/Serilog.Sinks.Logz.Io/).
+If you want to include the HTTP sink in your project, you can [install it directly from NuGet](https://www.nuget.org/packages/StreamFlow.RabbitMQ/).
 
-To install the sink, run the following command in the Package Manager Console:
+To install the package, run the following command in the Package Manager Console:
 
 ```
 PM> Install-Package StreamFlow.RabbitMq
@@ -49,12 +49,64 @@ It can be also treated as a consumer group but in this case it applies to whole 
 
 ### Connection
 
-Connection object is registered as singleton. It means that single service will have only one connection to RabbitMQ server.
+Connection object is registered as singleton. However there is a separation between consumer and publisher connections. 
+It means that single service instance can have maximum two connection to RabbitMQ server.
 
 ### IPublisher
 
-Uses scoped life time. Channel is opened one per scope. It means that for each requests where publisher is used - channel will be opened and closed.
-If you want to achieve higher publishing performance - need to ensure that IPublisher instance is reused.
+Uses singleton life time. Internally it uses Channel collection with bounded size of 100_000 items. If publications in the code are happening
+way faster then this collection is processed - you might receive a RabbitMqPublisherException with Reason: InternalQueueIsFull.
+
+Under the hood publisher uses asynchronous publisher acknowledgments. Which means every PublishAsync actually waits (asynchronously) for server 
+confirmation. See for more detailed explanation in RabbitMQ documentation: https://www.rabbitmq.com/confirms.html#publisher-confirms
+Here you can also see more detailed examples of the behavior: https://www.rabbitmq.com/tutorials/tutorial-seven-dotnet.html
+For a summary: if you await each PublishAsync method - you actually wait confirmation for each publication as in this example:
+
+```
+public async Task PublishMessagesAsync<T>(T [] messages)
+{
+    foreach (var message in messages)
+    {
+      try
+      {
+          await _publisher.PublishAsync(message);
+      }
+      catch (Exception e)
+      {
+          // handle publication errors
+      }
+    }
+}
+```
+
+Example above might be relatively slow - however it is very simple to implement. In order to improve publishing performance you can do similar approach like in this example:
+
+```
+public async Task PublishMessagesAsync<T>(T [] messages)
+{
+    var tasks = new Task[messages.Length];
+    for (var i = 0; i < messages.Length; ++i)
+    {
+        var message = messages[i];
+        tasks[i] = _publisher.PublishAsync(message);
+    }
+    
+    foreach (var task in tasks)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception e)
+        {
+            // handle publication errors
+        }
+    }
+}
+```
+
+NOTE: if you do not specify cancellation token (or specify default), or no timeout is specified in publish options - library automatically adds 60 seconds timeout. 
+If application do not receive response in this time - message is marked as cancelled.
 
 ### Middleware
 
