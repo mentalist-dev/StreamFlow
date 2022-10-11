@@ -1,6 +1,6 @@
 namespace StreamFlow.RabbitMq.Publisher;
 
-public sealed class RabbitMqPublication
+internal sealed class RabbitMqPublication
 {
     private readonly IDurationMetric? _duration;
     private readonly CancellationTokenSource _cts;

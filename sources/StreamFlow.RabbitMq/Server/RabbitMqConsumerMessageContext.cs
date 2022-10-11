@@ -2,7 +2,7 @@ using RabbitMQ.Client.Events;
 
 namespace StreamFlow.RabbitMq.Server;
 
-public class RabbitMqConsumerMessageContext : MessageContext
+public sealed class RabbitMqConsumerMessageContext : MessageContext
 {
     public RabbitMqConsumerMessageContext(BasicDeliverEventArgs @event) : base(@event.Body)
     {

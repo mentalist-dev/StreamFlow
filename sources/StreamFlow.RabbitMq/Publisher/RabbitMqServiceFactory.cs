@@ -7,7 +7,7 @@ internal interface IRabbitMqServiceFactory
     IRabbitMqService Create();
 }
 
-internal class RabbitMqServiceFactory: IRabbitMqServiceFactory
+internal sealed class RabbitMqServiceFactory: IRabbitMqServiceFactory
 {
     private readonly IRabbitMqPublisherConnection _connection;
     private readonly ILogger<RabbitMqPublisher> _logger;

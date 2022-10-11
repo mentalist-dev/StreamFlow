@@ -11,9 +11,8 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<IRabbitMqServiceFactory, RabbitMqServiceFactory>();
         services.AddSingleton<IRabbitMqPublicationQueue, RabbitMqPublicationQueue>();
 
-        services.AddSingleton<RabbitMqPublisher>();
-        services.AddSingleton<IRabbitMqPublisher>(p => p.GetRequiredService<RabbitMqPublisher>());
-        services.AddSingleton<IPublisher>(p => p.GetRequiredService<RabbitMqPublisher>());
+        services.AddTransient<IRabbitMqPublisher, RabbitMqPublisher>();
+        services.AddTransient<IPublisher, RabbitMqPublisher>();
 
         return services;
     }

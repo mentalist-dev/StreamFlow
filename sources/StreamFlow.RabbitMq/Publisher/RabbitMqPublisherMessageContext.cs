@@ -1,6 +1,6 @@
 namespace StreamFlow.RabbitMq.Publisher;
 
-public class RabbitMqPublisherMessageContext : MessageContext
+internal sealed class RabbitMqPublisherMessageContext : MessageContext
 {
     public PublishOptions? PublishOptions { get; }
 

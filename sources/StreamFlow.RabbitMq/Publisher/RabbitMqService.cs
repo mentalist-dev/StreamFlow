@@ -9,7 +9,7 @@ internal interface IRabbitMqService
     Task PublishAsync(RabbitMqPublication task, CancellationToken cancellationToken);
 }
 
-internal class RabbitMqService: IRabbitMqService
+internal sealed class RabbitMqService: IRabbitMqService
 {
     private static readonly Dictionary<string, DateTime> Exchanges = new();
     private static readonly object ExchangesLock = new();

@@ -33,7 +33,7 @@ public class RabbitMqConsumerInfo
     public ushort? PrefetchCount { get; }
 }
 
-public class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
+public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
 {
     private readonly ConcurrentDictionary<ulong, BasicDeliverEventArgs> _received = new();
     private readonly ManualResetEventSlim _consumerIsIdle = new(true);

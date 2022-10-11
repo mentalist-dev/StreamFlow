@@ -18,7 +18,7 @@ public enum ConnectionType
 
 public class RabbitMqConnection : IRabbitMqConnection
 {
-    private static readonly string StreamFlowVersion;
+    private static readonly string StreamFlowVersion = GetStreamFlowVersion();
 
     private readonly string[] _hostNames;
     private readonly string _userName;
@@ -27,11 +27,6 @@ public class RabbitMqConnection : IRabbitMqConnection
     private readonly string _serviceId;
 
     private ConnectionFactory? _connectionFactory;
-
-    static RabbitMqConnection()
-    {
-        StreamFlowVersion = GetStreamFlowVersion();
-    }
 
     public RabbitMqConnection(string[] hostNames, string userName, string password, string virtualHost, string? serviceId)
     {

@@ -49,11 +49,17 @@ public class RabbitMqPublisherShould
         var pipe = new StreamFlowPipe();
         pipe.AddRange(pipeBuilder.Actions);
 
-        var services = collection.BuildServiceProvider();
+        var services = collection.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true
+        });
+
+        using var scope = services.CreateScope();
 
         var id = Guid.NewGuid();
 
-        var context = services.GetRequiredService<RequestContext>();
+        var context = scope.ServiceProvider.GetRequiredService<RequestContext>();
         context.Current.Id = id;
 
         var publisher = new RabbitMqPublisher(
@@ -63,7 +69,7 @@ public class RabbitMqPublisherShould
             new RabbitMqConventions(new StreamFlowOptions()),
             new RabbitMqMessageSerializer(),
             metrics,
-            services);
+            scope.ServiceProvider);
 
         publicationQueue
             .When(q => q.Publish(Arg.Any<RabbitMqPublication>()))

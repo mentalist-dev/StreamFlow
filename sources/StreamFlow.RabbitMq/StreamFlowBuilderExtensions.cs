@@ -43,10 +43,11 @@ internal class StreamFlowRabbitMq: IStreamFlowRabbitMq
         _services = services;
         _options = options;
 
+        services.TryAddScoped<ILoggerScopeStateFactory, LoggerScopeStateFactory>();
+
         services.TryAddSingleton<IRabbitMqConventions, RabbitMqConventions>();
         services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
         services.TryAddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
-        services.TryAddScoped<ILoggerScopeStateFactory, LoggerScopeStateFactory>();
         services.TryAddSingleton<IRabbitMqMetrics, RabbitMqNoOpMetrics>();
 
         services.AddRabbitMqPublisher();

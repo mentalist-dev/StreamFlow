@@ -8,7 +8,7 @@ public interface IRabbitMqPublisher: IPublisher
 {
 }
 
-internal class RabbitMqPublisher : IRabbitMqPublisher
+internal sealed class RabbitMqPublisher : IRabbitMqPublisher
 {
     private static readonly string HostName = Dns.GetHostName();
 

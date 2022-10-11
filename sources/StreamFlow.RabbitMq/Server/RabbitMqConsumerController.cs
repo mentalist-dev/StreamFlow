@@ -5,7 +5,7 @@ using StreamFlow.Server;
 
 namespace StreamFlow.RabbitMq.Server;
 
-internal class RabbitMqConsumerController: IDisposable
+internal sealed class RabbitMqConsumerController: IDisposable
 {
     private readonly IServiceProvider _services;
     private readonly IConsumerRegistration _registration;
