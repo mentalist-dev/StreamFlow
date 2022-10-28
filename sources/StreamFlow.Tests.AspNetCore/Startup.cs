@@ -60,7 +60,7 @@ public class Startup
                         .ConfigureQueue(q => q.AutoDelete())
                     )
                     .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
-                    .Add<RaiseErrorRequest, RaiseRequestConsumer>(opt => opt.Prefetch(1))
+                    .Add<RaiseErrorRequest, RaiseErrorRequestConsumer>(opt => opt.RetryOnError(5))
                     .AddNotification<PingNotification>(opt => opt.Prefetch(1))
                 )
                 .ConfigureConsumerPipe(builder => builder

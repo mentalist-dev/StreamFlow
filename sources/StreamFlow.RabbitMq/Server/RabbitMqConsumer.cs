@@ -40,18 +40,20 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
 
     private readonly IServiceProvider _services;
     private readonly RabbitMqConsumerInfo _info;
+    private readonly StreamFlowDefaults _defaults;
     private readonly ILogger<RabbitMqConsumer> _logger;
 
     private readonly AsyncEventingBasicConsumer? _consumer;
     private readonly IModel _channel;
 
-    public RabbitMqConsumer(IServiceProvider services, IConnection connection, RabbitMqConsumerInfo consumerInfo, ILogger<RabbitMqConsumer> logger)
+    public RabbitMqConsumer(IServiceProvider services, IConnection connection, RabbitMqConsumerInfo consumerInfo, StreamFlowDefaults defaults, ILogger<RabbitMqConsumer> logger)
     {
         Id = Guid.NewGuid().ToString();
 
         _services = services;
         _logger = logger;
         _info = consumerInfo;
+        _defaults = defaults;
 
         var current = CreateConsumer(connection, consumerInfo);
         _channel = current.Channel;
@@ -169,13 +171,32 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
 
         using var loggerScope = CreateLoggerScope(serviceProvider, @event, consumer.Options, correlationId);
 
-        _logger.LogDebug("Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}.", _info, correlationId);
+        var redelivered = @event.Redelivered;
+        long? redeliveryCount = null;
+        if (@event.BasicProperties?.Headers.TryGetValue("x-delivery-count", out var deliveryCountObject) == true)
+        {
+            try
+            {
+                redeliveryCount = Convert.ToInt64(deliveryCountObject);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "x-delivery-count header value {@DeliveryCountHeader} is not convert-able to number", deliveryCountObject);
+                redeliveryCount = null;
+            }
+        }
+
+        var finalRetry = !CanRetryMessage(consumer, redeliveryCount);
+
+        _logger.LogDebug(
+            "Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}. Redelivered = {Redelivered}. Redelivery Count = {RedeliveryCount}",
+            _info, correlationId, redelivered, redeliveryCount);
 
         bool? acknowledge = false;
 
         try
         {
-            var context = new RabbitMqConsumerMessageContext(@event);
+            var context = new RabbitMqConsumerMessageContext(@event, finalRetry, redeliveryCount);
 
             // find handler and consume message
             var executor = serviceProvider.GetRequiredService<IStreamFlowConsumerPipe>();
@@ -201,7 +222,15 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         {
             metrics.ConsumerError(_info.Exchange, _info.Queue);
             _logger.LogError(e, "Message handling failed. Message info = {@MessageInfo}.", _info);
-            acknowledge = await HandleError(serviceProvider, @event, consumer, e).ConfigureAwait(false);
+
+            if (finalRetry)
+            {
+                acknowledge = await HandleError(serviceProvider, @event, consumer, e).ConfigureAwait(false);
+            }
+            else
+            {
+                acknowledge = false;
+            }
         }
         finally
         {
@@ -217,6 +246,23 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
                 }
             }
         }
+    }
+
+    private bool CanRetryMessage(IConsumerRegistration consumer, long? redeliveryCount)
+    {
+        var retry = false;
+
+        // lets check if x-delivery-count header is sent
+        var maxAllowedRetries = consumer.Options.MaxAllowedRetries.GetValueOrDefault(0);
+
+        var autoDelete = consumer.Options.Queue.AutoDelete;
+        var quorumQueue = consumer.Options.Queue.QuorumOptions?.Enabled ?? _defaults.QuorumOptions?.Enabled ?? true;
+        if (!autoDelete && quorumQueue)
+        {
+            retry = maxAllowedRetries > redeliveryCount.GetValueOrDefault(0);
+        }
+
+        return retry;
     }
 
     private IDisposable? CreateLoggerScope(IServiceProvider services, BasicDeliverEventArgs @event, ConsumerOptions consumerOptions, string correlationId)

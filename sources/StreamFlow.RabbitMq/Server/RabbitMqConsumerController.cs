@@ -10,6 +10,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
     private readonly IServiceProvider _services;
     private readonly IConsumerRegistration _registration;
     private readonly RabbitMqConsumerInfo _consumerInfo;
+    private readonly StreamFlowDefaults _defaults;
     private readonly IConnection _connection;
     private readonly ILogger<RabbitMqConsumer> _logger;
     private readonly CancellationToken _cancellationToken;
@@ -23,6 +24,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
     public RabbitMqConsumerController(IServiceProvider services
         , IConsumerRegistration registration
         , RabbitMqConsumerInfo consumerInfo
+        , StreamFlowDefaults defaults
         , IConnection connection
         , ILogger<RabbitMqConsumer> logger
         , CancellationToken cancellationToken)
@@ -30,6 +32,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
         _services = services;
         _registration = registration;
         _consumerInfo = consumerInfo;
+        _defaults = defaults;
         _connection = connection;
         _logger = logger;
         _cancellationToken = cancellationToken;
@@ -63,7 +66,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
 
         _logger.LogInformation("Creating new consumer. Consumer info: {@ConsumerInfo}.", consumerInfo);
 
-        _consumer = new RabbitMqConsumer(_services, _connection, consumerInfo, _logger);
+        _consumer = new RabbitMqConsumer(_services, _connection, consumerInfo, _defaults, _logger);
         _consumer.ChannelCrashed += (_, _) =>
         {
             _logger.LogWarning("Consumer channel crashed. Will try to recreate new.");

@@ -7,6 +7,7 @@ public class ConsumerOptions: IConsumerOptionsBuilder
     public ushort? PrefetchCount { get; private set; }
     public QueueOptions Queue { get; } = new();
     public bool IncludeHeadersToLoggerScope { get; private set; } = true;
+    public int? MaxAllowedRetries { get; private set; }
     public HashSet<string> ExcludeHeaderNamesFromLoggerScope { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     IConsumerOptionsBuilder IConsumerOptionsBuilder.ConsumerGroup(string consumerGroupName)
@@ -43,6 +44,12 @@ public class ConsumerOptions: IConsumerOptionsBuilder
     IConsumerOptionsBuilder IConsumerOptionsBuilder.Prefetch(ushort prefetchCount)
     {
         PrefetchCount = prefetchCount;
+        return this;
+    }
+
+    IConsumerOptionsBuilder IConsumerOptionsBuilder.RetryOnError(int? maxAllowedRetries)
+    {
+        MaxAllowedRetries = maxAllowedRetries;
         return this;
     }
 }

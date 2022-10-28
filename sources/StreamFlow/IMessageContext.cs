@@ -20,6 +20,8 @@ public interface IMessageContext
     string? Type { get; }
     string? UserId { get; }
     bool? Persistent { get; }
+    bool FinalRetry { get; }
+    long? RetryCount { get; }
 
     IMessageContext SetHeader(string key, object value, bool overrideIfExists = false);
     IMessageContext RemoveHeader(string key);
@@ -40,6 +42,8 @@ public interface IMessageContext
     IMessageContext WithType(string? type);
     IMessageContext WithUserId(string? userId);
     IMessageContext IsPersistent(bool? persistent);
+    IMessageContext SetFinalRetry(bool finalRetry);
+    IMessageContext SetRetryCount(long retryCount);
 }
 
 public enum MessageDeliveryMode
@@ -68,6 +72,8 @@ public abstract class MessageContext : IMessageContext
     public string? Type { get; private set; }
     public string? UserId { get; private set; }
     public bool? Persistent { get; private set; }
+    public bool FinalRetry { get; private set; }
+    public long? RetryCount { get; private set; }
 
     protected MessageContext(ReadOnlyMemory<byte> content)
     {
@@ -219,6 +225,18 @@ public abstract class MessageContext : IMessageContext
     public IMessageContext IsPersistent(bool? persistent)
     {
         Persistent = persistent;
+        return this;
+    }
+
+    public IMessageContext SetFinalRetry(bool finalRetry)
+    {
+        FinalRetry = finalRetry;
+        return this;
+    }
+
+    public IMessageContext SetRetryCount(long retryCount)
+    {
+        RetryCount = retryCount;
         return this;
     }
 }

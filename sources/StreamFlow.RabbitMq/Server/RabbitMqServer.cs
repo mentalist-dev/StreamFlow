@@ -20,12 +20,13 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
     private readonly IRabbitMqConnection _connection;
     private readonly RabbitMqConsumerOptions _options;
     private readonly IRabbitMqConventions _conventions;
+    private readonly StreamFlowOptions _defaults;
     private readonly List<RabbitMqConsumerController> _consumerControllers = new();
     private readonly ILogger<RabbitMqConsumer> _logger;
 
     private IConnection? _physicalConnection;
 
-    public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, RabbitMqConsumerOptions options, IRabbitMqConventions conventions, ILoggerFactory loggers)
+    public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, RabbitMqConsumerOptions options, IRabbitMqConventions conventions, StreamFlowOptions defaults, ILoggerFactory loggers)
     {
         _logger = loggers.CreateLogger<RabbitMqConsumer>();
 
@@ -33,6 +34,7 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         _connection = connection;
         _options = options;
         _conventions = conventions;
+        _defaults = defaults;
     }
 
     public async Task Start(IConsumerRegistration consumerRegistration, TimeSpan timeout, CancellationToken cancellationToken)
@@ -69,12 +71,13 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         }
 
         var prefetchCount = consumerRegistration.Options.PrefetchCount ?? _options.PrefetchCount;
+        var streamFlowDefaults = _defaults.Default ?? new StreamFlowDefaults();
 
         for (var i = 0; i < consumerCount; i++)
         {
             var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey, prefetchCount);
 
-            var controller = new RabbitMqConsumerController(_services, consumerRegistration, consumerInfo, connection, _logger, cancellationToken);
+            var controller = new RabbitMqConsumerController(_services, consumerRegistration, consumerInfo, streamFlowDefaults, connection, _logger, cancellationToken);
             controller.Start();
 
             _consumerControllers.Add(controller);

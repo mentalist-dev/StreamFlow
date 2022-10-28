@@ -4,10 +4,16 @@ namespace StreamFlow.RabbitMq.Server;
 
 public sealed class RabbitMqConsumerMessageContext : MessageContext
 {
-    public RabbitMqConsumerMessageContext(BasicDeliverEventArgs @event) : base(@event.Body)
+    public RabbitMqConsumerMessageContext(BasicDeliverEventArgs @event, bool finalRetry, long? retryCount) : base(@event.Body)
     {
         WithExchange(@event.Exchange);
         WithRoutingKey(@event.RoutingKey);
+        SetFinalRetry(finalRetry);
+
+        if (retryCount.HasValue)
+        {
+            SetRetryCount(retryCount.Value);
+        }
 
         @event.BasicProperties.MapTo(this);
 

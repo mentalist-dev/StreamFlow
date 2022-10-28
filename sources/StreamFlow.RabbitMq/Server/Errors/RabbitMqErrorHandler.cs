@@ -52,6 +52,13 @@ internal class RabbitMqErrorHandler : IRabbitMqErrorHandler
             properties.Headers["SF:ExceptionTime"] = DateTime.UtcNow.ToString("O");
             properties.Headers["SF:ExceptionMessage"] = exception.Message;
 
+            // reset redelivery count
+            if (properties.Headers.ContainsKey("x-delivery-count"))
+            {
+                properties.Headers["x-delivery-count-original"] = properties.Headers["x-delivery-count"];
+                properties.Headers.Remove("x-delivery-count");
+            }
+
             if (!string.IsNullOrWhiteSpace(exception.StackTrace))
             {
                 var stackTrace = new StringBuilder(exception.StackTrace);
