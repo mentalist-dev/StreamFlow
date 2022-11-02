@@ -45,9 +45,11 @@ internal class RabbitMqPublisherHost : IHostedService
     {
         _logger.LogWarning("RabbitMq publisher host started");
 
+        var cancellationToken = _cts.Token;
+
+        Exception? lastException = null;
         try
         {
-            var cancellationToken = _cts.Token;
             await foreach (var publication in _channel.ReadAllAsync(cancellationToken))
             {
                 if (publication == null)
@@ -58,14 +60,19 @@ internal class RabbitMqPublisherHost : IHostedService
                 duration?.Complete();
             }
         }
+        catch (OperationCanceledException e) when (cancellationToken.IsCancellationRequested)
+        {
+            lastException = e;
+        }
         catch (Exception e)
         {
-            _channel.Complete();
+            lastException = e;
             _logger.LogError(e, "RabbitMq publisher host failed");
         }
         finally
         {
-            _logger.LogWarning("RabbitMq publisher host exited");
+            _channel.Complete();
+            _logger.LogWarning(lastException, "RabbitMq publisher host exited");
         }
     }
 }
