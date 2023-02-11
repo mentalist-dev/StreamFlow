@@ -49,6 +49,7 @@ internal class StreamFlowRabbitMq: IStreamFlowRabbitMq
         services.TryAddSingleton<IMessageSerializer, RabbitMqMessageSerializer>();
         services.TryAddSingleton<IOutboxMessageAddressProvider, RabbitMqMessageAddressProvider>();
         services.TryAddSingleton<IRabbitMqMetrics, RabbitMqNoOpMetrics>();
+        services.TryAddSingleton<IRabbitMqHealthProvider, RabbitMqHealthProvider>();
 
         services.AddRabbitMqPublisher();
 

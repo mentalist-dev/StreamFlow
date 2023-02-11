@@ -10,21 +10,39 @@ namespace StreamFlow.RabbitMq.Server;
 
 public interface IRabbitMqServer
 {
+    RabbitMqServerState GetState();
+    
     Task Start(IConsumerRegistration consumerRegistration, TimeSpan timeout, CancellationToken cancellationToken);
     void Stop();
 }
 
+public class RabbitMqServerState
+{
+    public bool IsConnected { get; }
+    public int Registrations { get; }
+
+    public RabbitMqServerState(bool isConnected, int registrations)
+    {
+        IsConnected = isConnected;
+        Registrations = registrations;
+    }
+}
+
 public class RabbitMqServer: IRabbitMqServer, IDisposable
 {
+    private static readonly TimeSpan ConnectionClosedTolerance = TimeSpan.FromMinutes(10);
+
     private readonly IServiceProvider _services;
     private readonly IRabbitMqConnection _connection;
     private readonly RabbitMqConsumerOptions _options;
     private readonly IRabbitMqConventions _conventions;
     private readonly StreamFlowOptions _defaults;
+    private readonly List<IConsumerRegistration> _consumerRegistrations = new();
     private readonly List<RabbitMqConsumerController> _consumerControllers = new();
     private readonly ILogger<RabbitMqConsumer> _logger;
 
     private IConnection? _physicalConnection;
+    private DateTime? _physicalConnectionClosedSince = DateTime.UtcNow;
 
     public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, RabbitMqConsumerOptions options, IRabbitMqConventions conventions, StreamFlowOptions defaults, ILoggerFactory loggers)
     {
@@ -35,6 +53,11 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         _options = options;
         _conventions = conventions;
         _defaults = defaults;
+    }
+
+    public RabbitMqServerState GetState()
+    {
+        return new RabbitMqServerState(IsConnected(), _consumerRegistrations.Count);
     }
 
     public async Task Start(IConsumerRegistration consumerRegistration, TimeSpan timeout, CancellationToken cancellationToken)
@@ -72,6 +95,8 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
 
         var prefetchCount = consumerRegistration.Options.PrefetchCount ?? _options.PrefetchCount;
         var streamFlowDefaults = _defaults.Default ?? new StreamFlowDefaults();
+
+        _consumerRegistrations.Add(consumerRegistration);
 
         for (var i = 0; i < consumerCount; i++)
         {
@@ -124,6 +149,32 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private bool IsConnected()
+    {
+        if (_consumerControllers.Count == 0)
+        {
+            return true;
+        }
+
+        if (_physicalConnection == null || !_physicalConnection.IsOpen)
+        {
+            if (_physicalConnectionClosedSince == null)
+            {
+                _physicalConnectionClosedSince = DateTime.UtcNow;
+                return true;
+            }
+
+            if (_physicalConnectionClosedSince != null && DateTime.UtcNow - _physicalConnectionClosedSince.Value > ConnectionClosedTolerance)
+            {
+                return false;
+            }
+        }
+
+        _physicalConnectionClosedSince = null;
+
+        return true;
     }
 
     private async Task<IConnection?> GetConnection(TimeSpan timeout, CancellationToken cancellationToken)

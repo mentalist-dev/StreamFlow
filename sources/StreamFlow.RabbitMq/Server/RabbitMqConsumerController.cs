@@ -59,6 +59,11 @@ internal sealed class RabbitMqConsumerController: IDisposable
         GC.SuppressFinalize(this);
     }
 
+    ~RabbitMqConsumerController()
+    {
+        _disposed = true;
+    }
+
     private void CreateConsumerInternal(RabbitMqConsumerInfo consumerInfo)
     {
         if (_disposing || _disposed)

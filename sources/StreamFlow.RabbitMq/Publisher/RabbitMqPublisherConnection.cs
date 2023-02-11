@@ -8,6 +8,8 @@ namespace StreamFlow.RabbitMq.Publisher;
 internal interface IRabbitMqPublisherConnection
 {
     IConnection Get();
+
+    bool? IsConnected { get; }
 }
 
 internal sealed class RabbitMqPublisherConnection: IRabbitMqPublisherConnection, IDisposable
@@ -75,6 +77,8 @@ internal sealed class RabbitMqPublisherConnection: IRabbitMqPublisherConnection,
 
         return _physicalConnection;
     }
+
+    public bool? IsConnected => _physicalConnection?.IsOpen;
 
     private void OnPhysicalConnectionUnblocked(object? sender, EventArgs e)
     {

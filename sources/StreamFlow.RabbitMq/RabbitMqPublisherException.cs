@@ -23,5 +23,6 @@ public enum PublicationExceptionReason
     Rejected,
     Returned,
     ExchangeNotFound,
-    InternalQueueIsFull
+    InternalQueueIsFull,
+    PublisherStopped
 }

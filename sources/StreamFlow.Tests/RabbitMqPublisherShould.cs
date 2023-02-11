@@ -25,7 +25,8 @@ public class RabbitMqPublisherShould
             new RabbitMqConventions(new StreamFlowOptions()),
             new RabbitMqMessageSerializer(),
             metrics,
-            services);
+            services,
+            Substitute.For<IRabbitMqPublisherHost>());
 
         publicationQueue
             .When(q => q.Publish(Arg.Any<RabbitMqPublication>()))
@@ -69,7 +70,8 @@ public class RabbitMqPublisherShould
             new RabbitMqConventions(new StreamFlowOptions()),
             new RabbitMqMessageSerializer(),
             metrics,
-            scope.ServiceProvider);
+            scope.ServiceProvider,
+            Substitute.For<IRabbitMqPublisherHost>());
 
         publicationQueue
             .When(q => q.Publish(Arg.Any<RabbitMqPublication>()))

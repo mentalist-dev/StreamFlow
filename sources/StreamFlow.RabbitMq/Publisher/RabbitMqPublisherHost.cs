@@ -1,9 +1,14 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace StreamFlow.RabbitMq.Publisher;
 
-internal class RabbitMqPublisherHost : IHostedService
+internal interface IRabbitMqPublisherHost
+{
+    bool IsRunning { get; }
+}
+
+internal class RabbitMqPublisherHost : IRabbitMqPublisherHost
 {
     private readonly CancellationTokenSource _cts = new();
 
@@ -15,31 +20,27 @@ internal class RabbitMqPublisherHost : IHostedService
     public RabbitMqPublisherHost(IRabbitMqPublicationQueue channel
         , IRabbitMqServiceFactory rabbitMqFactory
         , IRabbitMqMetrics metrics
-        , ILogger<RabbitMqPublisher> logger)
+        , ILogger<RabbitMqPublisher> logger
+        , IHostApplicationLifetime lifetime)
     {
         _channel = channel;
         _rabbitMq = rabbitMqFactory.Create();
         _metrics = metrics;
         _logger = logger;
-    }
 
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
         Task.Factory.StartNew(
             MonitorQueueAsync,
             CancellationToken.None,
-            TaskCreationOptions.DenyChildAttach,
+            TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
             TaskScheduler.Default
         );
 
-        return Task.CompletedTask;
+        IsRunning = true;
+
+        lifetime.ApplicationStopping.Register(_cts.Cancel);
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        _cts.Cancel();
-        return Task.CompletedTask;
-    }
+    public bool IsRunning { get; private set; }
 
     private async Task MonitorQueueAsync()
     {
@@ -53,7 +54,9 @@ internal class RabbitMqPublisherHost : IHostedService
             await foreach (var publication in _channel.ReadAllAsync(cancellationToken))
             {
                 if (publication == null)
+                {
                     continue;
+                }
 
                 using var duration = _metrics.PublicationConsumed(publication.Context.Exchange ?? string.Empty);
                 await _rabbitMq.PublishAsync(publication, cancellationToken);
@@ -71,6 +74,7 @@ internal class RabbitMqPublisherHost : IHostedService
         }
         finally
         {
+            IsRunning = false;
             _channel.Complete();
             _logger.LogWarning(lastException, "RabbitMq publisher host exited");
         }

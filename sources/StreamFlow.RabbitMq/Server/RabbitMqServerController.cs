@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StreamFlow.Configuration;
 
@@ -15,11 +16,13 @@ public class RabbitMqServerController: IRabbitMqServerController
     private readonly IConsumerRegistrations _registrations;
     private readonly ILogger<RabbitMqServerController> _logger;
 
-    public RabbitMqServerController(IRabbitMqServer server, IConsumerRegistrations registrations, ILogger<RabbitMqServerController> logger)
+    public RabbitMqServerController(IRabbitMqServer server, IConsumerRegistrations registrations, ILogger<RabbitMqServerController> logger, IHostApplicationLifetime lifetime)
     {
         _server = server;
         _registrations = registrations;
         _logger = logger;
+
+        lifetime.ApplicationStopping.Register(_server.Stop);
     }
 
     public async Task StartAsync(TimeSpan timeout, CancellationToken cancellationToken)

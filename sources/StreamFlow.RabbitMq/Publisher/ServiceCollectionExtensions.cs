@@ -6,7 +6,7 @@ internal static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddRabbitMqPublisher(this IServiceCollection services)
     {
-        services.AddHostedService<RabbitMqPublisherHost>();
+        services.AddSingleton<IRabbitMqPublisherHost, RabbitMqPublisherHost>();
         services.AddSingleton<IRabbitMqService, RabbitMqService>();
         services.AddSingleton<IRabbitMqServiceFactory, RabbitMqServiceFactory>();
         services.AddSingleton<IRabbitMqPublicationQueue, RabbitMqPublicationQueue>();

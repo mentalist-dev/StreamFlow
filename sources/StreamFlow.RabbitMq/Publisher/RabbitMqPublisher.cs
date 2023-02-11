@@ -19,6 +19,7 @@ internal sealed class RabbitMqPublisher : IRabbitMqPublisher
     private readonly IMessageSerializer _messageSerializer;
     private readonly IRabbitMqMetrics _metrics;
     private readonly IServiceProvider _services;
+    private readonly IRabbitMqPublisherHost _host;
 
     public RabbitMqPublisher(RabbitMqPublisherOptions globalOptions
         , IStreamFlowPublisherPipe pipe
@@ -26,7 +27,8 @@ internal sealed class RabbitMqPublisher : IRabbitMqPublisher
         , IRabbitMqConventions conventions
         , IMessageSerializer messageSerializer
         , IRabbitMqMetrics metrics
-        , IServiceProvider services)
+        , IServiceProvider services
+        , IRabbitMqPublisherHost host)
     {
         _globalOptions = globalOptions;
         _pipe = pipe;
@@ -35,6 +37,7 @@ internal sealed class RabbitMqPublisher : IRabbitMqPublisher
         _messageSerializer = messageSerializer;
         _metrics = metrics;
         _services = services;
+        _host = host;
     }
 
     public Task PublishAsync<T>(T message, PublishOptions? options = null, CancellationToken cancellationToken = default) where T : class
@@ -119,7 +122,15 @@ internal sealed class RabbitMqPublisher : IRabbitMqPublisher
             , options?.Timeout
         );
 
-        _queue.Publish(messageCompletion);
+        if (_host.IsRunning)
+        {
+            _queue.Publish(messageCompletion);
+        }
+        else
+        {
+            messageCompletion.Fail(new RabbitMqPublisherException(PublicationExceptionReason.PublisherStopped));
+        }
+        
         return messageCompletion.Completion.Task;
     }
 }
