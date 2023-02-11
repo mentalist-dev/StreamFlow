@@ -18,6 +18,7 @@
     <AssemblyVersion>7.0.0.0</AssemblyVersion>
     <FileVersion>7.0.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <LangVersion>latest</LangVersion>
     <!--async methods without await -->
     <WarningsAsErrors>CS4014;</WarningsAsErrors>
@@ -38,6 +39,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\README.md" Link="README.md">
+      <Pack>true</Pack>
+      <PackagePath></PackagePath>
+    </None>
+  </ItemGroup>
+
+	<ItemGroup>
     <PackageReference Include="prometheus-net" Version="7.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
   </ItemGroup>

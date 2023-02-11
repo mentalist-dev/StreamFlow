@@ -19,6 +19,7 @@
     <AssemblyVersion>7.0.0.0</AssemblyVersion>
     <FileVersion>7.0.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <LangVersion>latest</LangVersion>
     <!--async methods without await -->
     <WarningsAsErrors>CS4014;</WarningsAsErrors>
@@ -33,6 +34,13 @@
 
   <ItemGroup>
     <None Include="..\..\LICENSE" Link="license\LICENSE">
+      <Pack>true</Pack>
+      <PackagePath></PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Link="README.md">
       <Pack>true</Pack>
       <PackagePath></PackagePath>
     </None>
