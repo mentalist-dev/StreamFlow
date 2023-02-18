@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
 using Serilog;
@@ -11,7 +10,6 @@ using StreamFlow.RabbitMq;
 using StreamFlow.RabbitMq.MediatR;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.RabbitMq.Publisher;
-using StreamFlow.Tests.AspNetCore.Application;
 using StreamFlow.Tests.AspNetCore.Application.Errors;
 using StreamFlow.Tests.AspNetCore.Application.Ping;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
@@ -42,7 +40,7 @@ try
         options.UseNpgsql("Server=localhost;User Id=admin;Password=admin;Database=StreamFlow");
     });
 
-    services.AddMediatR(typeof(Program).Assembly);
+    services.AddMediatR(configuration => configuration.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
     services.AddStreamFlow(streamFlowOptions, transport =>
     {
