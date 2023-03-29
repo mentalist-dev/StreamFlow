@@ -14,6 +14,7 @@ using StreamFlow.Tests.AspNetCore.Application.Errors;
 using StreamFlow.Tests.AspNetCore.Application.Ping;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.Contracts;
+using StreamFlow.Tests.AspNetCore.Application.Long;
 
 try
 {
@@ -21,8 +22,7 @@ try
     builder.Host.UseSerilog((_, configuration) =>
     {
         configuration.MinimumLevel.ControlledBy(new LoggingLevelSwitch(LogEventLevel.Debug));
-        configuration.WriteTo.Console(
-            outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+        configuration.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}");
     }, true);
 
     var services = builder.Services;
@@ -61,6 +61,7 @@ try
                     .ConfigureQueue(q => q.AutoDelete())
                 )
                 .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
+                .Add<LongRequest, LongRequestConsumer>()
                 .Add<RaiseErrorRequest, RaiseErrorRequestConsumer>(opt => opt.RetryOnError(5))
                 .AddNotification<PingNotification>(opt => opt.Prefetch(1))
             )
@@ -80,18 +81,25 @@ try
     var publisher = app.Services.GetRequiredService<IRabbitMqPublisher>();
 
     var request = new TimeSheetEditedEvent();
-    await publisher.PublishAsync(
-        request,
-        new PublishOptions
-        {
-            Headers =
+    try
+    {
+        await publisher.PublishAsync(
+            request,
+            new PublishOptions
             {
-                {"index", "sent-from-index"},
-                {"index-id", Guid.NewGuid()},
-                {"check-priority", "set inside index"},
+                Headers =
+                {
+                    {"index", "sent-from-index"},
+                    {"index-id", Guid.NewGuid()},
+                    {"check-priority", "set inside index"},
+                }
             }
-        }
-    );
+        );
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine(e);
+    }
 
     app.UseDeveloperExceptionPage();
     app.UseStaticFiles();

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace StreamFlow.RabbitMq.Publisher;
@@ -21,7 +20,7 @@ internal class RabbitMqPublisherHost : IRabbitMqPublisherHost
         , IRabbitMqServiceFactory rabbitMqFactory
         , IRabbitMqMetrics metrics
         , ILogger<RabbitMqPublisher> logger
-        , IHostApplicationLifetime lifetime)
+        , IRabbitMqPublisherHostLifetime lifetime)
     {
         _channel = channel;
         _rabbitMq = rabbitMqFactory.Create();
@@ -37,7 +36,7 @@ internal class RabbitMqPublisherHost : IRabbitMqPublisherHost
 
         IsRunning = true;
 
-        lifetime.ApplicationStopping.Register(_cts.Cancel);
+        lifetime.OnApplicationStopping(_cts.Cancel);
     }
 
     public bool IsRunning { get; private set; }
@@ -58,6 +57,8 @@ internal class RabbitMqPublisherHost : IRabbitMqPublisherHost
                     continue;
                 }
 
+                publication.MarkAsDequeued();
+
                 using var duration = _metrics.PublicationConsumed(publication.Context.Exchange ?? string.Empty);
                 await _rabbitMq.PublishAsync(publication, cancellationToken);
                 duration?.Complete();
@@ -76,7 +77,47 @@ internal class RabbitMqPublisherHost : IRabbitMqPublisherHost
         {
             IsRunning = false;
             _channel.Complete();
+
+            await DrainAsync();
+
             _logger.LogWarning(lastException, "RabbitMq publisher host exited");
+        }
+    }
+
+    private async Task DrainAsync()
+    {
+        try
+        {
+            var drainSuccess = 0;
+            var drainFailure = 0;
+            Exception? lastException = null;
+
+            await foreach (var publication in _channel.ReadAllAsync(CancellationToken.None))
+            {
+                try
+                {
+                    publication?.Cancel();
+                    drainSuccess += 1;
+                }
+                catch (Exception e)
+                {
+                    drainFailure += 1;
+                    lastException = e;
+                }
+            }
+
+            if (drainFailure > 0)
+            {
+                _logger.LogError(lastException, "RabbitMq publisher host failed to drain {DrainSuccess} publications, {DrainFailure} failed", drainSuccess, drainFailure);
+            }
+            else
+            {
+                _logger.LogWarning("RabbitMq publisher host drained {DrainSuccess} publications", drainSuccess);
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "RabbitMq publisher host failed to drain");
         }
     }
 }

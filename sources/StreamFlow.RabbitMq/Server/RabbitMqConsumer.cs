@@ -67,10 +67,34 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         {
             _received.Clear();
 
-            _logger.LogWarning("Channel shutdown: {@Details}", args);
-                
-            if (args.ReplyCode == Constants.PreconditionFailed)
+            if (args.ReplyCode == Constants.ReplySuccess)
             {
+                _logger.LogWarning("Channel shutdown: {@Details}", args);
+            }
+            else
+            {
+                // log warnings for known cases
+                if (args.ReplyCode == Constants.PreconditionFailed)
+                {
+                    _logger.LogWarning("Channel shutdown: {@Details}", args);
+                }
+                else if (args.Cause is EndOfStreamException ex)
+                {
+                    _logger.LogWarning(ex, "Channel shutdown: {@Details}", args);
+                }
+                else
+                {
+                    // log errors for unknown cases
+                    if (args.Cause is Exception e)
+                    {
+                        _logger.LogError(e, "Channel shutdown: {@Details}", args);
+                    }
+                    else
+                    {
+                        _logger.LogError("Channel shutdown: {@Details}", args);
+                    }
+                }
+
                 ChannelCrashed?.Invoke(this, EventArgs.Empty);
             }
         };
@@ -81,7 +105,9 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         };
 
         if (consumerInfo.PrefetchCount > 0)
+        {
             channel.BasicQos(0, consumerInfo.PrefetchCount.Value, false);
+        }
 
         var consumer = new AsyncEventingBasicConsumer(channel);
 

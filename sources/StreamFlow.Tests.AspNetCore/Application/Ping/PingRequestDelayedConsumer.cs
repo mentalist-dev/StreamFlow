@@ -1,3 +1,5 @@
+using StreamFlow.Tests.Contracts;
+
 namespace StreamFlow.Tests.AspNetCore.Application.Ping;
 
 public class PingRequestDelayedConsumer : IConsumer<PingMessage>

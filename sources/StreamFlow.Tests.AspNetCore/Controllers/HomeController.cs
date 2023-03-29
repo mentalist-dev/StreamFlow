@@ -5,6 +5,7 @@ using StreamFlow.Outbox;
 using StreamFlow.Tests.AspNetCore.Application;
 using StreamFlow.Tests.AspNetCore.Application.Ping;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
+using StreamFlow.Tests.Contracts;
 
 namespace StreamFlow.Tests.AspNetCore.Controllers
 {

@@ -18,6 +18,9 @@ public class RabbitMqPublisherShould
         var collection = new ServiceCollection();
         var services = collection.BuildServiceProvider();
 
+        var host = Substitute.For<IRabbitMqPublisherHost>();
+        host.IsRunning.Returns(true);
+
         var publisher = new RabbitMqPublisher(
             new RabbitMqPublisherOptions(),
             new StreamFlowPipe(),
@@ -26,13 +29,13 @@ public class RabbitMqPublisherShould
             new RabbitMqMessageSerializer(),
             metrics,
             services,
-            Substitute.For<IRabbitMqPublisherHost>());
+            host);
 
         publicationQueue
             .When(q => q.Publish(Arg.Any<RabbitMqPublication>()))
             .Do(p => p.Arg<RabbitMqPublication>().Complete());
 
-        await publisher.PublishAsync(new PingRequest());
+        await publisher.PublishAsync(new PingMessage());
     }
 
     [Fact]
@@ -63,6 +66,9 @@ public class RabbitMqPublisherShould
         var context = scope.ServiceProvider.GetRequiredService<RequestContext>();
         context.Current.Id = id;
 
+        var host = Substitute.For<IRabbitMqPublisherHost>();
+        host.IsRunning.Returns(true);
+
         var publisher = new RabbitMqPublisher(
             new RabbitMqPublisherOptions(),
             pipe,
@@ -71,13 +77,13 @@ public class RabbitMqPublisherShould
             new RabbitMqMessageSerializer(),
             metrics,
             scope.ServiceProvider,
-            Substitute.For<IRabbitMqPublisherHost>());
+            host);
 
         publicationQueue
             .When(q => q.Publish(Arg.Any<RabbitMqPublication>()))
             .Do(p => p.Arg<RabbitMqPublication>().Complete());
 
-        await publisher.PublishAsync(new PingRequest());
+        await publisher.PublishAsync(new PingMessage());
 
         publicationQueue
             .Received(1)
@@ -102,7 +108,7 @@ public class RabbitMqPublisherShould
         public Task Invoke(IMessageContext context, Func<IMessageContext, Task> next)
         {
             var id = _context.Current.Id;
-            context.SetHeader("account-id", id.ToString() ?? string.Empty);
+            context.SetHeader("account-id", id.ToString());
             return next(context);
         }
     }

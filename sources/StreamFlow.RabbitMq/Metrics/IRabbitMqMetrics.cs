@@ -13,4 +13,6 @@ public interface IRabbitMqMetrics
 
     void ErrorQueuePublished(string originalExchangeName, string originalQueueName);
     void ErrorQueueFailed(string originalExchangeName, string originalQueueName);
+
+    IDisposable? PublisherQueued(string exchangeName);
 }

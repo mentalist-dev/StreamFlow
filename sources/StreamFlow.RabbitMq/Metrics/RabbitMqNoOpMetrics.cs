@@ -42,4 +42,9 @@ internal class RabbitMqNoOpMetrics : IRabbitMqMetrics
     {
         //
     }
+
+    public IDisposable? PublisherQueued(string exchangeName)
+    {
+        return null;
+    }
 }

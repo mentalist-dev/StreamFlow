@@ -42,24 +42,29 @@ public class PrometheusRabbitMqMetrics: IRabbitMqMetrics
         });
 
     private readonly Counter _consumerErrorCounter = Metrics.CreateCounter(
-        "streamflow_consumer_errors",
+        "streamflow_consumer_errors_total",
         "RabbitMQ consumer errors",
         new CounterConfiguration {LabelNames = new[] {"exchange", "queue"}});
 
     private readonly Counter _consumerCancellationCounter = Metrics.CreateCounter(
-        "streamflow_consumer_cancellations",
+        "streamflow_consumer_cancellations_total",
         "RabbitMQ consumer cancellations",
         new CounterConfiguration {LabelNames = new[] {"exchange", "queue"}});
 
     private readonly Counter _consumerErrorQueuePublishedCounter = Metrics.CreateCounter(
-        "streamflow_consumer_error_queue_publication",
+        "streamflow_consumer_error_queue_publication_total",
         "Counts messages published to error queue when consumer fails",
         new CounterConfiguration {LabelNames = new[] {"exchange", "queue"}});
 
     private readonly Counter _consumerErrorQueueFailedCounter = Metrics.CreateCounter(
-        "streamflow_consumer_error_queue_failures",
+        "streamflow_consumer_error_queue_failures_total",
         "Counts errors when publishing to error queue",
         new CounterConfiguration {LabelNames = new[] {"exchange", "queue"}});
+
+    private readonly Gauge _publisherQueuedMessages = Metrics.CreateGauge(
+        "streamflow_publisher_queue",
+        "Publisher queue size monitor",
+        new GaugeConfiguration {LabelNames = new[] {"exchange"}});
 
     public IDurationMetric PublicationCreated(string exchangeName)
     {
@@ -107,6 +112,11 @@ public class PrometheusRabbitMqMetrics: IRabbitMqMetrics
         _consumerErrorQueueFailedCounter
             .Labels(originalExchangeName, originalQueueName)
             .Inc();
+    }
+
+    public IDisposable? PublisherQueued(string exchange)
+    {
+        return _publisherQueuedMessages.Labels(exchange).TrackInProgress();
     }
 }
 

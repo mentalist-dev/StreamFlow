@@ -119,7 +119,8 @@ internal sealed class RabbitMqPublisher : IRabbitMqPublisher
         var messageCompletion = new RabbitMqPublication(totalDuration
             , (RabbitMqPublisherMessageContext) ctx
             , cancellationToken
-            , options?.Timeout
+            , options?.Timeout,
+            _metrics.PublisherQueued(ctx.Exchange ?? string.Empty)
         );
 
         if (_host.IsRunning)

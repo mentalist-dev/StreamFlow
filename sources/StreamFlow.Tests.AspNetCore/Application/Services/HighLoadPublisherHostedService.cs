@@ -1,4 +1,5 @@
 using StreamFlow.Tests.AspNetCore.Application.Ping;
+using StreamFlow.Tests.Contracts;
 
 namespace StreamFlow.Tests.AspNetCore.Application.Services
 {

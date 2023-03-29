@@ -44,6 +44,7 @@ while (!finished)
     Console.WriteLine("  B: start 10 threads for publications (any key will stop it)");
     Console.WriteLine("  C: publish to non existing exchange");
     Console.WriteLine("  D: publish error request (consumer will fail)");
+    Console.WriteLine("  E: publish long request (consumer should get server timeout)");
 
     var key = Console.ReadKey(false);
     Console.WriteLine();
@@ -81,6 +82,12 @@ while (!finished)
 
                 break;
             }
+            case ConsoleKey.E:
+            {
+                await PublishLongRequest(provider, logger);
+
+                break;
+            }
             default:
             {
                 await PublishSingleMessage(provider, logger);
@@ -113,7 +120,7 @@ async Task PublishMessagesAsync(ServiceProvider provider1, ILogger<Program> logs
     while (!Console.KeyAvailable)
     {
         count += 1;
-        var request = new PingRequest { Timestamp = DateTime.Now };
+        var request = new PingMessage { Timestamp = DateTime.Now };
 
         var task = publisher.PublishAsync(request, new PublishOptions { Timeout = TimeSpan.FromSeconds(60) });
         tasks.Add(task);
@@ -170,7 +177,7 @@ async Task PublishThreadedMessages(ServiceProvider provider1, ILogger<Program> l
                 try
                 {
                     count += 1;
-                    var request = new PingRequest { Timestamp = DateTime.Now };
+                    var request = new PingMessage { Timestamp = DateTime.Now };
                     var task = publisher.PublishAsync(request, new PublishOptions { Timeout = TimeSpan.FromSeconds(60) });
                     tasks.Add(task);
 
@@ -212,7 +219,7 @@ async Task PublishToNonExistingExchange(ServiceProvider serviceProvider, ILogger
 {
     await using var scope = serviceProvider.CreateAsyncScope();
     var publisher = scope.ServiceProvider.GetRequiredService<IRabbitMqPublisher>();
-    var request = new PingRequest {Timestamp = DateTime.Now};
+    var request = new PingMessage { Timestamp = DateTime.Now };
     logs.LogInformation("Publishing request: {@Request}", request);
     await publisher.PublishAsync(request, new PublishOptions {Timeout = TimeSpan.FromSeconds(60), Exchange = Guid.NewGuid().ToString(), IgnoreNoRouteEvents = true});
     logs.LogInformation("Request published {@Request}", request);
@@ -228,11 +235,21 @@ async Task PublishErrorRequest(ServiceProvider serviceProvider, ILogger<Program>
     logs.LogInformation("Request published {@Request}", request);
 }
 
+async Task PublishLongRequest(ServiceProvider serviceProvider, ILogger<Program> logs)
+{
+    await using var scope = serviceProvider.CreateAsyncScope();
+    var publisher = scope.ServiceProvider.GetRequiredService<IRabbitMqPublisher>();
+    var request = new LongRequest { Duration = TimeSpan.FromMinutes(5) };
+    logs.LogInformation("Publishing long request: {@Request}", request);
+    await publisher.PublishAsync(request, new PublishOptions {Timeout = TimeSpan.FromSeconds(60), CreateExchangeEnabled = true});
+    logs.LogInformation("Request published {@Request}", request);
+}
+
 async Task PublishSingleMessage(ServiceProvider serviceProvider, ILogger<Program> logs)
 {
     await using var scope = serviceProvider.CreateAsyncScope();
     var publisher = scope.ServiceProvider.GetRequiredService<IRabbitMqPublisher>();
-    var request = new PingRequest {Timestamp = DateTime.Now};
+    var request = new PingMessage { Timestamp = DateTime.Now, Message = "Hello world" };
     logs.LogInformation("Publishing request: {@Request}", request);
     await publisher.PublishAsync(request, new PublishOptions {Timeout = TimeSpan.FromSeconds(60), CreateExchangeEnabled = true});
     logs.LogInformation("Request published {@Request}", request);

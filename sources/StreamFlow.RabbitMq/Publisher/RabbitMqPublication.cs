@@ -3,6 +3,7 @@ namespace StreamFlow.RabbitMq.Publisher;
 internal sealed class RabbitMqPublication
 {
     private readonly IDurationMetric? _duration;
+    private readonly IDisposable? _queued;
     private readonly CancellationTokenSource _cts;
     private Exception? _exception;
     private bool _finished;
@@ -12,9 +13,10 @@ internal sealed class RabbitMqPublication
     public TaskCompletionSource Completion { get; }
     public CancellationToken CancellationToken { get; }
 
-    public RabbitMqPublication(IDurationMetric? duration, RabbitMqPublisherMessageContext context, CancellationToken cancellationToken, TimeSpan? timeout, bool fireAndForget = false)
+    public RabbitMqPublication(IDurationMetric? duration, RabbitMqPublisherMessageContext context, CancellationToken cancellationToken, TimeSpan? timeout, IDisposable? queued, bool fireAndForget = false)
     {
         _duration = duration;
+        _queued = queued;
 
         Context = context;
         FireAndForget = fireAndForget;
@@ -47,6 +49,18 @@ internal sealed class RabbitMqPublication
     public void MarkStateAsFailed(Exception e)
     {
         _exception = e is not OperationCanceledException ? e : null;
+    }
+
+    public void MarkAsDequeued()
+    {
+        try
+        {
+            _queued?.Dispose();
+        }
+        catch
+        {
+            //
+        }
     }
 
     private void CompleteInternal()
