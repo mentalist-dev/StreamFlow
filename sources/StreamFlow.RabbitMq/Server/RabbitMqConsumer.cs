@@ -76,26 +76,26 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
                 // log warnings for known cases
                 if (args.ReplyCode == Constants.PreconditionFailed)
                 {
-                    _logger.LogWarning("Channel shutdown: {@Details}", args);
+                    _logger.LogWarning("Channel shutdown 1: {@Details}", args);
+                    ChannelCrashed?.Invoke(this, EventArgs.Empty);
                 }
                 else if (args.Cause is EndOfStreamException ex)
                 {
-                    _logger.LogWarning(ex, "Channel shutdown: {@Details}", args);
+                    _logger.LogWarning(ex, "Channel shutdown 2: {@Details}", args);
+                    ChannelCrashed?.Invoke(this, EventArgs.Empty);
                 }
                 else
                 {
                     // log errors for unknown cases
                     if (args.Cause is Exception e)
                     {
-                        _logger.LogError(e, "Channel shutdown: {@Details}", args);
+                        _logger.LogError(e, "Channel shutdown 3: {@Details}", args);
                     }
                     else
                     {
-                        _logger.LogError("Channel shutdown: {@Details}", args);
+                        _logger.LogError("Channel shutdown 4: {@Details}", args);
                     }
                 }
-
-                ChannelCrashed?.Invoke(this, EventArgs.Empty);
             }
         };
 
