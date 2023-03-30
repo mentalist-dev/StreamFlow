@@ -39,14 +39,19 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
     private readonly StreamFlowOptions _defaults;
     private readonly List<IConsumerRegistration> _consumerRegistrations = new();
     private readonly List<RabbitMqConsumerController> _consumerControllers = new();
-    private readonly ILogger<RabbitMqConsumer> _logger;
+    private readonly ILogger<IRabbitMqConsumer> _logger;
 
     private IConnection? _physicalConnection;
     private DateTime? _physicalConnectionClosedSince = DateTime.UtcNow;
 
-    public RabbitMqServer(IServiceProvider services, IRabbitMqConnection connection, RabbitMqConsumerOptions options, IRabbitMqConventions conventions, StreamFlowOptions defaults, ILoggerFactory loggers)
+    public RabbitMqServer(IServiceProvider services
+        , IRabbitMqConnection connection
+        , RabbitMqConsumerOptions options
+        , IRabbitMqConventions conventions
+        , StreamFlowOptions defaults
+        , ILogger<IRabbitMqConsumer> logger)
     {
-        _logger = loggers.CreateLogger<RabbitMqConsumer>();
+        _logger = logger;
 
         _services = services;
         _connection = connection;

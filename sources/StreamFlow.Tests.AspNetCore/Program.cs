@@ -3,6 +3,7 @@ using Prometheus;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Formatting.Json;
 using StreamFlow.Tests.AspNetCore.Database;
 using StreamFlow.Tests.AspNetCore;
 using StreamFlow;
@@ -23,6 +24,7 @@ try
     {
         configuration.MinimumLevel.ControlledBy(new LoggingLevelSwitch(LogEventLevel.Debug));
         configuration.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+        configuration.WriteTo.File(new JsonFormatter(), "bin/debug/logs.txt");
     }, true);
 
     var services = builder.Services;
@@ -54,16 +56,16 @@ try
                 )
             )
             .Consumers(b => b
-                .Add<PingMessage, PingMessageConsumer>(options => options
-                    .ConsumerCount(25)
-                    .ConsumerGroup("gr4")
-                    .IncludeHeadersToLoggerScope()
-                    .ConfigureQueue(q => q.AutoDelete())
-                )
-                .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
+                // .Add<PingMessage, PingMessageConsumer>(options => options
+                //     .ConsumerCount(25)
+                //     .ConsumerGroup("gr4")
+                //     .IncludeHeadersToLoggerScope()
+                //     .ConfigureQueue(q => q.AutoDelete())
+                // )
+                // .Add<TimeSheetEditedEvent, TimeSheetEditedEventConsumer>()
                 .Add<LongRequest, LongRequestConsumer>()
-                .Add<RaiseErrorRequest, RaiseErrorRequestConsumer>(opt => opt.RetryOnError(5))
-                .AddNotification<PingNotification>(opt => opt.Prefetch(1))
+                // .Add<RaiseErrorRequest, RaiseErrorRequestConsumer>(opt => opt.RetryOnError(5))
+                // .AddNotification<PingNotification>(opt => opt.Prefetch(1))
             )
             .ConfigureConsumerPipe(b => b
                 .Use<LogAppIdMiddleware>()

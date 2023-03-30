@@ -91,6 +91,7 @@ public class RabbitMqConnection : IRabbitMqConnection
             DispatchConsumersAsync = true,
             AutomaticRecoveryEnabled = true,
             TopologyRecoveryEnabled = true,
+            UseBackgroundThreadsForIO = true,
             ClientProperties =
             {
                 ["copyright"] = "mentalist.dev",

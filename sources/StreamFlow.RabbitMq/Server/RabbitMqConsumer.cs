@@ -27,13 +27,14 @@ public class RabbitMqConsumerInfo
         PrefetchCount = prefetchCount;
     }
 
+    public string Id { get; } = Guid.NewGuid().ToString();
     public string Exchange { get; }
     public string Queue { get; }
     public string RoutingKey { get; }
     public ushort? PrefetchCount { get; }
 }
 
-public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
+internal sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
 {
     private readonly ConcurrentDictionary<ulong, BasicDeliverEventArgs> _received = new();
     private readonly ManualResetEventSlim _consumerIsIdle = new(true);
@@ -41,17 +42,30 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
     private readonly IServiceProvider _services;
     private readonly RabbitMqConsumerInfo _info;
     private readonly StreamFlowDefaults _defaults;
-    private readonly ILogger<RabbitMqConsumer> _logger;
+    private readonly ILogger<IRabbitMqConsumer> _logger;
+    private readonly List<KeyValuePair<string, object>> _loggerState;
 
     private readonly AsyncEventingBasicConsumer? _consumer;
     private readonly IModel _channel;
 
-    public RabbitMqConsumer(IServiceProvider services, IConnection connection, RabbitMqConsumerInfo consumerInfo, StreamFlowDefaults defaults, ILogger<RabbitMqConsumer> logger)
+    public string Id { get; }
+    public string? ConsumerTag { get; private set; }
+    public bool IsDisposed { get; private set; }
+    public bool IsCanceled { get; private set; }
+    public event EventHandler? ChannelCrashed;
+
+    public RabbitMqConsumer(IServiceProvider services
+        , IConnection connection
+        , RabbitMqConsumerInfo consumerInfo
+        , StreamFlowDefaults defaults
+        , ILogger<IRabbitMqConsumer> logger
+        , List<KeyValuePair<string, object>> loggerState)
     {
-        Id = Guid.NewGuid().ToString();
+        Id = consumerInfo.Id;
 
         _services = services;
         _logger = logger;
+        _loggerState = loggerState;
         _info = consumerInfo;
         _defaults = defaults;
 
@@ -60,65 +74,19 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         _consumer = current.Consumer;
     }
 
-    private (IModel Channel, AsyncEventingBasicConsumer Consumer) CreateConsumer(IConnection connection, RabbitMqConsumerInfo consumerInfo)
+    ~RabbitMqConsumer()
     {
-        var channel = connection.CreateModel();
-        channel.ModelShutdown += (_, args) =>
-        {
-            _received.Clear();
-
-            if (args.ReplyCode == Constants.ReplySuccess)
-            {
-                _logger.LogWarning("Channel shutdown: {@Details}", args);
-            }
-            else
-            {
-                // log warnings for known cases
-                if (args.ReplyCode == Constants.PreconditionFailed)
-                {
-                    _logger.LogWarning("Channel shutdown 1: {@Details}", args);
-                    ChannelCrashed?.Invoke(this, EventArgs.Empty);
-                }
-                else if (args.Cause is EndOfStreamException ex)
-                {
-                    _logger.LogWarning(ex, "Channel shutdown 2: {@Details}", args);
-                    ChannelCrashed?.Invoke(this, EventArgs.Empty);
-                }
-                else
-                {
-                    // log errors for unknown cases
-                    if (args.Cause is Exception e)
-                    {
-                        _logger.LogError(e, "Channel shutdown 3: {@Details}", args);
-                    }
-                    else
-                    {
-                        _logger.LogError("Channel shutdown 4: {@Details}", args);
-                    }
-                }
-            }
-        };
-
-        channel.CallbackException += (_, args) =>
-        {
-            _logger.LogWarning("Callback exception: {@Details}", args);
-        };
-
-        if (consumerInfo.PrefetchCount > 0)
-        {
-            channel.BasicQos(0, consumerInfo.PrefetchCount.Value, false);
-        }
-
-        var consumer = new AsyncEventingBasicConsumer(channel);
-
-        return (channel, consumer);
+        Dispose(false);
     }
 
-    public string Id { get; }
-    public string? ConsumerTag { get; private set; }
-    public bool IsDisposed { get; private set; }
-    public bool IsCanceled { get; private set; }
-    public event EventHandler? ChannelCrashed;
+    public void Dispose()
+    {
+        if (IsDisposed)
+            return;
+
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 
     public void Start(IConsumerRegistration consumerRegistration, CancellationToken cancellationToken)
     {
@@ -127,6 +95,8 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
 
         _consumer.Received += async (_, @event) =>
         {
+            using var loggerScope = _logger.BeginScope(_loggerState);
+
             try
             {
                 _received.TryAdd(@event.DeliveryTag, @event);
@@ -162,14 +132,14 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
 
             if (_channel is {IsOpen: true} && !string.IsNullOrWhiteSpace(consumerTag))
             {
-                _logger.LogWarning("Cancelling RabbitMQ subscription {ConsumerId} / {ConsumerTag}", Id, consumerTag);
+                _logger.LogWarning("Cancelling RabbitMQ subscription {ConsumerTag}", consumerTag);
                 try
                 {
                     _channel.BasicCancel(consumerTag);
                 }
                 catch (Exception e)
                 {
-                    _logger.LogError(e, "Unable to cancel RabbitMQ subscription {ConsumerId} / {ConsumerTag}", Id, consumerTag);
+                    _logger.LogError(e, "Unable to cancel RabbitMQ subscription {ConsumerTag}", consumerTag);
                 }
             }
         }
@@ -179,11 +149,91 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         return consumerTag;
     }
 
+    private void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _logger.LogDebug("Disposing consumer. Message info = {@MessageInfo}.", _info);
+
+            try
+            {
+                Cancel();
+
+                _consumerIsIdle.Wait(TimeSpan.FromSeconds(60));
+
+                var channel = _channel;
+                CloseChannel(channel);
+                DisposeChannel(channel);
+            }
+            finally
+            {
+                IsDisposed = true;
+            }
+        }
+    }
+
+    private (IModel Channel, AsyncEventingBasicConsumer Consumer) CreateConsumer(IConnection connection, RabbitMqConsumerInfo consumerInfo)
+    {
+        var channel = connection.CreateModel();
+        channel.ModelShutdown += (_, args) =>
+        {
+            using var loggerScope = _logger.BeginScope(_loggerState);
+
+            _received.Clear();
+
+            if (args.ReplyCode == Constants.ReplySuccess || args.ReplyCode == Constants.NotFound)
+            {
+                _logger.LogTrace("Channel shutdown: {@Details}", args);
+            }
+            else
+            {
+                // log warnings for known cases
+                if (args.ReplyCode == Constants.PreconditionFailed)
+                {
+                    _logger.LogWarning("Channel shutdown 1: {@Details}", args);
+                    ChannelCrashed?.Invoke(this, EventArgs.Empty);
+                }
+                else if (args.Cause is EndOfStreamException ex)
+                {
+                    _logger.LogWarning(ex, "Channel shutdown 2: {@Details}", args);
+                    ChannelCrashed?.Invoke(this, EventArgs.Empty);
+                }
+                else
+                {
+                    // log errors for unknown cases
+                    if (args.Cause is Exception e)
+                    {
+                        _logger.LogError(e, "Channel shutdown 3: {@Details}", args);
+                    }
+                    else
+                    {
+                        _logger.LogError("Channel shutdown 4: {@Details}", args);
+                    }
+                }
+            }
+        };
+
+        channel.CallbackException += (_, args) =>
+        {
+            using var loggerScope = _logger.BeginScope(_loggerState);
+            _logger.LogWarning("Callback exception: {@Details}", args);
+        };
+
+        if (consumerInfo.PrefetchCount > 0)
+        {
+            channel.BasicQos(0, consumerInfo.PrefetchCount.Value, false);
+        }
+
+        var consumer = new AsyncEventingBasicConsumer(channel);
+
+        return (channel, consumer);
+    }
+
     private async Task OnReceivedAsync(BasicDeliverEventArgs @event, IConsumerRegistration consumer, CancellationToken cancellationToken)
     {
         if (IsDisposed || IsCanceled)
         {
-            _logger.LogTrace("IsDisposed = {Disposed} or IsCanceled = {Canceled}", IsDisposed, IsCanceled);
+            _logger.LogTrace("Consumer IsDisposed = {Disposed} or IsCanceled = {Canceled}", IsDisposed, IsCanceled);
             return;
         }
 
@@ -215,7 +265,7 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         var finalRetry = !CanRetryMessage(consumer, redeliveryCount);
 
         _logger.LogDebug(
-            "Received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}. Redelivered = {Redelivered}. Redelivery Count = {RedeliveryCount}",
+            "Consumer received message. Message info = {@MessageInfo}. CorrelationId = {CorrelationId}. Redelivered = {Redelivered}. Redelivery Count = {RedeliveryCount}",
             _info, correlationId, redelivered, redeliveryCount);
 
         bool? acknowledge = false;
@@ -382,32 +432,31 @@ public sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         }
     }
 
-    public void Dispose()
+    private void CloseChannel(IModel channel)
     {
-        if (IsDisposed)
-            return;
-
-        _logger.LogDebug("Disposing consumer. Message info = {@MessageInfo}.", _info);
-
         try
         {
-            Cancel();
-
-            _consumerIsIdle.Wait(TimeSpan.FromSeconds(60));
-
-            var channel = _channel;
             if (channel.IsOpen)
             {
                 _logger.LogDebug("Closing channel.");
                 channel.Close();
             }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to close channel");
+        }
+    }
+
+    private void DisposeChannel(IModel channel)
+    {
+        try
+        {
             channel.Dispose();
         }
-        finally
+        catch (Exception e)
         {
-            IsDisposed = true;
+            _logger.LogError(e, "Unable to dispose channel");
         }
-
-        GC.SuppressFinalize(this);
     }
 }

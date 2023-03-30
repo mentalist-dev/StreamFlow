@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using StreamFlow.Server;
@@ -7,12 +7,15 @@ namespace StreamFlow.RabbitMq.Server;
 
 internal sealed class RabbitMqConsumerController: IDisposable
 {
+    private readonly Channel<DateTime> _recoveryChannel = Channel.CreateBounded<DateTime>(1);
+
     private readonly IServiceProvider _services;
     private readonly IConsumerRegistration _registration;
     private readonly RabbitMqConsumerInfo _consumerInfo;
     private readonly StreamFlowDefaults _defaults;
     private readonly IConnection _connection;
-    private readonly ILogger<RabbitMqConsumer> _logger;
+    private readonly ILogger<IRabbitMqConsumer> _logger;
+    private readonly List<KeyValuePair<string, object>> _loggerState;
     private readonly CancellationToken _cancellationToken;
 
     private CancellationTokenSource? _cancellationTokenSource;
@@ -26,7 +29,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
         , RabbitMqConsumerInfo consumerInfo
         , StreamFlowDefaults defaults
         , IConnection connection
-        , ILogger<RabbitMqConsumer> logger
+        , ILogger<IRabbitMqConsumer> logger
         , CancellationToken cancellationToken)
     {
         _services = services;
@@ -36,6 +39,15 @@ internal sealed class RabbitMqConsumerController: IDisposable
         _connection = connection;
         _logger = logger;
         _cancellationToken = cancellationToken;
+
+        _loggerState = new List<KeyValuePair<string, object>> { new("ConsumerId", _consumerInfo.Id) };
+
+        Task.Factory.StartNew(
+            RecoveryMonitor,
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
+        );
     }
 
     public void Start()
@@ -45,7 +57,8 @@ internal sealed class RabbitMqConsumerController: IDisposable
 
         if (!_initialized)
         {
-            CreateConsumerInternal(_consumerInfo);
+            using var scope = _logger.BeginScope(_loggerState);
+            CreateAndStartConsumer(_consumerInfo);
             _initialized = true;
         }
     }
@@ -53,7 +66,18 @@ internal sealed class RabbitMqConsumerController: IDisposable
     public void Dispose()
     {
         _disposing = true;
-        DestroyConsumer();
+
+        var consumer = _consumer;
+        if (consumer != null)
+        {
+            using var scope = _logger.BeginScope(_loggerState);
+
+            DestroyCurrentConsumer(consumer);
+            _consumer = null;
+        }
+
+        _recoveryChannel.Writer.TryComplete();
+
         _disposed = true;
 
         GC.SuppressFinalize(this);
@@ -64,66 +88,129 @@ internal sealed class RabbitMqConsumerController: IDisposable
         _disposed = true;
     }
 
-    private void CreateConsumerInternal(RabbitMqConsumerInfo consumerInfo)
+    private async Task RecoveryMonitor()
+    {
+        try
+        {
+            var consumerInfo = _consumerInfo;
+
+            await foreach (var _ in _recoveryChannel.Reader.ReadAllAsync(_cancellationToken))
+            {
+                using var scope = _logger.BeginScope(_loggerState);
+
+                try
+                {
+                    _logger.LogWarning("Channel crashed, will start recovery.");
+
+                    await RecoverConsumerInternal(consumerInfo);
+
+                    _logger.LogWarning("Recovery finished");
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Recovery failed");
+                }
+            }
+        }
+        catch (OperationCanceledException e)
+        {
+            _logger.LogInformation(e, "Recovery monitor canceled!");
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Recovery monitor crashed!");
+        }
+    }
+
+    private async Task RecoverConsumerInternal(RabbitMqConsumerInfo consumerInfo)
+    {
+        const int maxAllowedRetries = 10;
+        var allowedRetries = maxAllowedRetries;
+        while (allowedRetries > 0)
+        {
+            try
+            {
+                allowedRetries -= 1;
+
+                var consumer = _consumer;
+                if (consumer != null)
+                {
+                    try
+                    {
+                        DestroyCurrentConsumer(consumer);
+                        _consumer = null;
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e, "Unable to destroy current consumer ");
+                    }
+                }
+
+                CreateAndStartConsumer(consumerInfo);
+
+                break;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Recovery failed, retries left {Retries}", allowedRetries);
+
+                if (allowedRetries > 0)
+                {
+                    var delay = maxAllowedRetries - allowedRetries + 1;
+                    await Task.Delay(TimeSpan.FromSeconds(10 * delay), _cancellationToken);
+                }
+            }
+        }
+    }
+
+    private void CreateAndStartConsumer(RabbitMqConsumerInfo consumerInfo)
     {
         if (_disposing || _disposed)
             return;
 
-        _logger.LogInformation("Creating new consumer. Consumer info: {@ConsumerInfo}.", consumerInfo);
-
-        _consumer = new RabbitMqConsumer(_services, _connection, consumerInfo, _defaults, _logger);
+        _consumer = new RabbitMqConsumer(_services, _connection, consumerInfo, _defaults, _logger, _loggerState);
         _consumer.ChannelCrashed += (_, _) =>
         {
-            _logger.LogWarning("Consumer channel crashed. Will try to recreate new.");
-            Task.Factory.StartNew(() => RecoverConsumer(consumerInfo), _cancellationToken);
+            _recoveryChannel.Writer.TryWrite(DateTime.UtcNow);
         };
+
+        _logger.LogInformation("Created new consumer. Consumer info: {@ConsumerInfo}.", consumerInfo);
 
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_cancellationToken);
 
         _consumer.Start(_registration, _cancellationTokenSource.Token);
     }
 
-    private async Task RecoverConsumer(RabbitMqConsumerInfo consumerInfo)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(5), _cancellationToken);
-
-        _logger.LogWarning("Trying to recover consumer..");
-
-        DestroyConsumer();
-        CreateConsumerInternal(consumerInfo);
-    }
-
     #region Destroy Consumer
 
-    private void DestroyConsumer()
+    private void DestroyCurrentConsumer(RabbitMqConsumer consumer)
     {
-        var consumer = _consumer;
-        if (consumer != null)
+        lock (this)
         {
-            lock (this)
+            var canceledConsumerTag = CancelConsumerAtServer(consumer);
+
+            if (!string.IsNullOrWhiteSpace(canceledConsumerTag))
             {
-                var canceledConsumerTag = CancelConsumerAtServer();
-                LogConsumerDestroy(consumer.Id, canceledConsumerTag);
-                CancelCurrentExecutions();
-                DisposeConsumer();
+                _logger.LogWarning(
+                    "Destroying consumer instance {ConsumerTag} for Queue = {QueueName} using Routing Key = {RoutingKey}.",
+                    canceledConsumerTag, _consumerInfo.Queue, _consumerInfo.RoutingKey);
             }
+
+            CancelCurrentExecutions();
+            DisposeConsumer(consumer);
         }
     }
 
-    private string? CancelConsumerAtServer()
+    private string? CancelConsumerAtServer(RabbitMqConsumer consumer)
     {
         try
         {
-            var consumer = _consumer;
-            if (consumer != null)
-            {
-                _logger.LogTrace(
-                    "Cancelling consumer {ConsumerId} / {ConsumerTag} subscription at server.",
-                    consumer.Id, consumer.ConsumerTag
-                );
+            _logger.LogDebug(
+                "Cancelling consumer {ConsumerTag} subscription at server.",
+                consumer.ConsumerTag
+            );
 
-                return consumer.Cancel();
-            }
+            return consumer.Cancel();
         }
         catch (Exception e)
         {
@@ -133,29 +220,11 @@ internal sealed class RabbitMqConsumerController: IDisposable
         return null;
     }
 
-    private void LogConsumerDestroy(string consumerId, string? consumerTag)
-    {
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(consumerTag))
-            {
-                _logger.LogWarning(
-                    "Destroying consumer instance {ConsumerId} / {ConsumerTag} for Queue = {QueueName} using Routing Key = {RoutingKey}.",
-                    consumerId, consumerTag, _consumerInfo.Queue, _consumerInfo.RoutingKey);
-            }
-        }
-        catch (Exception e)
-        {
-            // if logger is failing - we cannot log it..
-            Trace.WriteLine(e.ToString(), "RabbitMqConsumerController");
-        }
-    }
-
     private void CancelCurrentExecutions()
     {
         try
         {
-            _logger.LogTrace("Marking consumer executions as cancelled");
+            _logger.LogDebug("Consumer marking executions as cancelled");
             _cancellationTokenSource?.Cancel();
         }
         catch (Exception e)
@@ -177,24 +246,16 @@ internal sealed class RabbitMqConsumerController: IDisposable
         }
     }
 
-    private void DisposeConsumer()
+    private void DisposeConsumer(RabbitMqConsumer consumer)
     {
         try
         {
-            var consumer = _consumer;
-            if (consumer != null)
-            {
-                _logger.LogTrace("Disposing consumer {ConsumerId}", consumer.Id);
-                consumer.Dispose();
-            }
+            _logger.LogTrace("Disposing consumer");
+            consumer.Dispose();
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Consumer dispose failed");
-        }
-        finally
-        {
-            _consumer = null;
         }
     }
 

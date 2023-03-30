@@ -8,9 +8,9 @@ public class RabbitMqConsumerHostedService: IHostedService
 {
     private readonly IRabbitMqServerController _controller;
     private readonly IHostApplicationLifetime _lifetime;
-    private readonly ILogger<RabbitMqConsumer> _logger;
+    private readonly ILogger<IRabbitMqConsumer> _logger;
 
-    public RabbitMqConsumerHostedService(IRabbitMqServerController controller, IHostApplicationLifetime lifetime, ILogger<RabbitMqConsumer> logger)
+    public RabbitMqConsumerHostedService(IRabbitMqServerController controller, IHostApplicationLifetime lifetime, ILogger<IRabbitMqConsumer> logger)
     {
         _controller = controller;
         _lifetime = lifetime;
