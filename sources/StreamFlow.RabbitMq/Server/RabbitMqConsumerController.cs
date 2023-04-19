@@ -14,6 +14,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
     private readonly RabbitMqConsumerInfo _consumerInfo;
     private readonly StreamFlowDefaults _defaults;
     private readonly IConnection _connection;
+    private readonly IRabbitMqMetrics _metrics;
     private readonly ILogger<IRabbitMqConsumer> _logger;
     private readonly List<KeyValuePair<string, object>> _loggerState;
     private readonly CancellationToken _cancellationToken;
@@ -29,6 +30,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
         , RabbitMqConsumerInfo consumerInfo
         , StreamFlowDefaults defaults
         , IConnection connection
+        , IRabbitMqMetrics metrics
         , ILogger<IRabbitMqConsumer> logger
         , CancellationToken cancellationToken)
     {
@@ -37,6 +39,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
         _consumerInfo = consumerInfo;
         _defaults = defaults;
         _connection = connection;
+        _metrics = metrics;
         _logger = logger;
         _cancellationToken = cancellationToken;
 
@@ -168,7 +171,7 @@ internal sealed class RabbitMqConsumerController: IDisposable
         if (_disposing || _disposed)
             return;
 
-        _consumer = new RabbitMqConsumer(_services, _connection, consumerInfo, _defaults, _logger, _loggerState);
+        _consumer = new RabbitMqConsumer(_services, _connection, consumerInfo, _defaults, _metrics, _logger, _loggerState);
         _consumer.ChannelCrashed += (_, _) =>
         {
             _recoveryChannel.Writer.TryWrite(DateTime.UtcNow);

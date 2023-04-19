@@ -13,6 +13,11 @@ public class LongRequestConsumer: IConsumer<LongRequest>
         catch (Exception e)
         {
             Console.WriteLine("Long request failed: " + e);
+            throw;
+        }
+        finally
+        {
+            Console.WriteLine("Long request finished");
         }
     }
 }

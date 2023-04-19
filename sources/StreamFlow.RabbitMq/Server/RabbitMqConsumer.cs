@@ -42,6 +42,7 @@ internal sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
     private readonly IServiceProvider _services;
     private readonly RabbitMqConsumerInfo _info;
     private readonly StreamFlowDefaults _defaults;
+    private readonly IRabbitMqMetrics _metrics;
     private readonly ILogger<IRabbitMqConsumer> _logger;
     private readonly List<KeyValuePair<string, object>> _loggerState;
 
@@ -58,6 +59,7 @@ internal sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         , IConnection connection
         , RabbitMqConsumerInfo consumerInfo
         , StreamFlowDefaults defaults
+        , IRabbitMqMetrics metrics
         , ILogger<IRabbitMqConsumer> logger
         , List<KeyValuePair<string, object>> loggerState)
     {
@@ -68,6 +70,7 @@ internal sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         _loggerState = loggerState;
         _info = consumerInfo;
         _defaults = defaults;
+        _metrics = metrics;
 
         var current = CreateConsumer(connection, consumerInfo);
         _channel = current.Channel;
@@ -177,6 +180,8 @@ internal sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
         var channel = connection.CreateModel();
         channel.ModelShutdown += (_, args) =>
         {
+            _metrics.ChannelShutdown(args.ReplyCode);
+
             using var loggerScope = _logger.BeginScope(_loggerState);
 
             _received.Clear();
@@ -190,11 +195,13 @@ internal sealed class RabbitMqConsumer: IRabbitMqConsumer, IDisposable
                 // log warnings for known cases
                 if (args.ReplyCode == Constants.PreconditionFailed)
                 {
+                    _metrics.ChannelCrashed(args.ReplyCode);
                     _logger.LogWarning("Channel shutdown 1: {@Details}", args);
                     ChannelCrashed?.Invoke(this, EventArgs.Empty);
                 }
                 else if (args.Cause is EndOfStreamException ex)
                 {
+                    _metrics.ChannelCrashed(args.ReplyCode);
                     _logger.LogWarning(ex, "Channel shutdown 2: {@Details}", args);
                     ChannelCrashed?.Invoke(this, EventArgs.Empty);
                 }

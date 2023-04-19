@@ -37,6 +37,7 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
     private readonly RabbitMqConsumerOptions _options;
     private readonly IRabbitMqConventions _conventions;
     private readonly StreamFlowOptions _defaults;
+    private readonly IRabbitMqMetrics _metrics;
     private readonly List<IConsumerRegistration> _consumerRegistrations = new();
     private readonly List<RabbitMqConsumerController> _consumerControllers = new();
     private readonly ILogger<IRabbitMqConsumer> _logger;
@@ -49,6 +50,7 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         , RabbitMqConsumerOptions options
         , IRabbitMqConventions conventions
         , StreamFlowOptions defaults
+        , IRabbitMqMetrics metrics
         , ILogger<IRabbitMqConsumer> logger)
     {
         _logger = logger;
@@ -58,6 +60,7 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         _options = options;
         _conventions = conventions;
         _defaults = defaults;
+        _metrics = metrics;
     }
 
     public RabbitMqServerState GetState()
@@ -107,7 +110,7 @@ public class RabbitMqServer: IRabbitMqServer, IDisposable
         {
             var consumerInfo = new RabbitMqConsumerInfo(exchange, queue, routingKey, prefetchCount);
 
-            var controller = new RabbitMqConsumerController(_services, consumerRegistration, consumerInfo, streamFlowDefaults, connection, _logger, cancellationToken);
+            var controller = new RabbitMqConsumerController(_services, consumerRegistration, consumerInfo, streamFlowDefaults, connection, _metrics, _logger, cancellationToken);
             controller.Start();
 
             _consumerControllers.Add(controller);

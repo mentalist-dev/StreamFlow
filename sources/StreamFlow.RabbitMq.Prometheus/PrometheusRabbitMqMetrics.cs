@@ -32,6 +32,11 @@ public class PrometheusRabbitMqMetrics: IRabbitMqMetrics
             Buckets = Histogram.ExponentialBuckets(0.001, 2, 16)
         });
 
+    private readonly Counter _publisherErrorCounter = Metrics.CreateCounter(
+        "streamflow_publication_errors_total",
+        "RabbitMQ publisher errors",
+        new CounterConfiguration { LabelNames = new[] { "exchange", "reason" } });
+
     private readonly Histogram _consumerHistogram = Metrics.CreateHistogram(
         "streamflow_messages_consumed",
         "Messages consumed",
@@ -66,6 +71,16 @@ public class PrometheusRabbitMqMetrics: IRabbitMqMetrics
         "Publisher queue size monitor",
         new GaugeConfiguration {LabelNames = new[] {"exchange"}});
 
+    private readonly Counter _channelShutdownCounter = Metrics.CreateCounter(
+        "streamflow_publication_channel_shutdown_total",
+        "RabbitMQ channel shutdowns",
+        new CounterConfiguration { LabelNames = new[] { "replyCode" } });
+
+    private readonly Counter _channelCrashedCounter = Metrics.CreateCounter(
+        "streamflow_publication_channel_crashed_total",
+        "RabbitMQ channel crashes",
+        new CounterConfiguration { LabelNames = new[] { "replyCode" } });
+
     public IDurationMetric PublicationCreated(string exchangeName)
     {
         return new DurationMetric(_publicationCreatedHistogram, exchangeName);
@@ -79,6 +94,11 @@ public class PrometheusRabbitMqMetrics: IRabbitMqMetrics
     public IDurationMetric Published(string exchangeName)
     {
         return new DurationMetric(_publishedHistogram, exchangeName);
+    }
+
+    public void PublisherError(string exchangeName, PublicationExceptionReason reason)
+    {
+        _publisherErrorCounter.Labels(exchangeName, reason.ToString()).Inc();
     }
 
     public IDurationMetric Consumed(string exchangeName, string queueName)
@@ -117,6 +137,16 @@ public class PrometheusRabbitMqMetrics: IRabbitMqMetrics
     public IDisposable? PublisherQueued(string exchange)
     {
         return _publisherQueuedMessages.Labels(exchange).TrackInProgress();
+    }
+
+    public void ChannelShutdown(ushort replyCode)
+    {
+        _channelShutdownCounter.Labels(replyCode.ToString()).Inc();
+    }
+
+    public void ChannelCrashed(ushort replyCode)
+    {
+        _channelCrashedCounter.Labels(replyCode.ToString()).Inc();
     }
 }
 

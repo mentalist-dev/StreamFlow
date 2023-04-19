@@ -18,6 +18,11 @@ internal class RabbitMqNoOpMetrics : IRabbitMqMetrics
         return null;
     }
 
+    public void PublisherError(string exchangeName, PublicationExceptionReason reason)
+    {
+        //
+    }
+
     public IDurationMetric? Consumed(string exchangeName, string queueName)
     {
         return null;
@@ -46,5 +51,15 @@ internal class RabbitMqNoOpMetrics : IRabbitMqMetrics
     public IDisposable? PublisherQueued(string exchangeName)
     {
         return null;
+    }
+
+    public void ChannelShutdown(ushort replyCode)
+    {
+        //
+    }
+
+    public void ChannelCrashed(ushort replyCode)
+    {
+        //
     }
 }

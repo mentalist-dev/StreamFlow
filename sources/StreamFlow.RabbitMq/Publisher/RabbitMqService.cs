@@ -15,13 +15,15 @@ internal sealed class RabbitMqService: IRabbitMqService
     private static readonly object ExchangesLock = new();
 
     private readonly IRabbitMqPublisherConnection _connection;
+    private readonly IRabbitMqMetrics _metrics;
     private readonly ILogger<RabbitMqPublisher> _logger;
 
     private RabbitMqPublisherChannel? _channel;
 
-    public RabbitMqService(IRabbitMqPublisherConnection connection, ILogger<RabbitMqPublisher> logger)
+    public RabbitMqService(IRabbitMqPublisherConnection connection, IRabbitMqMetrics metrics, ILogger<RabbitMqPublisher> logger)
     {
         _connection = connection;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -35,6 +37,8 @@ internal sealed class RabbitMqService: IRabbitMqService
             {
                 if (task.CancellationToken.IsCancellationRequested)
                 {
+                    _metrics.PublisherError(task.Context.Exchange ?? string.Empty, PublicationExceptionReason.Cancelled);
+
                     task.Cancel();
                     finished = true;
                     continue;
@@ -52,10 +56,14 @@ internal sealed class RabbitMqService: IRabbitMqService
             }
             catch (OperationCanceledException e)
             {
+                _metrics.PublisherError(task.Context.Exchange ?? string.Empty, PublicationExceptionReason.Cancelled);
+
                 finished = OnOperationCancelled(task, e);
             }
             catch (OperationInterruptedException e)
             {
+                _metrics.PublisherError(task.Context.Exchange ?? string.Empty, PublicationExceptionReason.OperationInterrupted);
+
                 // must recreate channel after this exception
                 _channel?.Dispose();
                 _channel = null;
@@ -64,10 +72,14 @@ internal sealed class RabbitMqService: IRabbitMqService
             }
             catch (RabbitMqPublisherException e)
             {
+                _metrics.PublisherError(task.Context.Exchange ?? string.Empty, e.Reason);
+
                 finished = OnPublisherException(task, e, retries);
             }
             catch (Exception e)
             {
+                _metrics.PublisherError(task.Context.Exchange ?? string.Empty, PublicationExceptionReason.Unknown);
+
                 finished = OnException(task, e, retries);
             }
 

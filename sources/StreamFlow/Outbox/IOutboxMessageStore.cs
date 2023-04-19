@@ -30,7 +30,7 @@ namespace StreamFlow.Outbox
                 ? _serializer.Deserialize<PublishOptions>(outboxMessage.Options)
                 : null;
 
-            return _publisher.PublishAsync(message, options);
+            return _publisher.PublishAsync(message, options, cancellationToken);
         }
 
         public Task<IAsyncDisposable?> StartLock(string key)

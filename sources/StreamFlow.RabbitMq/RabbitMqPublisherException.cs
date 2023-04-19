@@ -19,10 +19,13 @@ public class RabbitMqPublisherException : Exception
 
 public enum PublicationExceptionReason
 {
-    ChannelReset,
-    Rejected,
-    Returned,
-    ExchangeNotFound,
-    InternalQueueIsFull,
-    PublisherStopped
+    ChannelReset = 0,
+    Rejected = 1,
+    Returned = 2,
+    ExchangeNotFound = 3,
+    InternalQueueIsFull = 4,
+    PublisherStopped = 5,
+    Cancelled = 6,
+    OperationInterrupted = 7,
+    Unknown = 255
 }
