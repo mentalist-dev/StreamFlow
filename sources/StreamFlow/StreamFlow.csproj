@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net6.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
@@ -14,12 +14,10 @@
     <PackageProjectUrl>https://github.com/mentalist-dev/StreamFlow</PackageProjectUrl>
     <RepositoryUrl>https://github.com/mentalist-dev/StreamFlow</RepositoryUrl>
     <PackageTags>Messaging Framework StreamFlow ServiceBus EventBus</PackageTags>
-	<PackageReleaseNotes></PackageReleaseNotes>
+    <PackageReleaseNotes></PackageReleaseNotes>
     <Version>7.1.1</Version>
     <AssemblyVersion>7.0.0.0</AssemblyVersion>
     <FileVersion>7.0.0.0</FileVersion>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <LangVersion>latest</LangVersion>
     <!--async methods without await -->
     <WarningsAsErrors>CS4014;</WarningsAsErrors>
@@ -32,18 +30,14 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
   </PropertyGroup>
 
-  <ItemGroup>
-    <None Include="..\..\LICENSE" Link="license\LICENSE">
-      <Pack>true</Pack>
-      <PackagePath></PackagePath>
-    </None>
-  </ItemGroup>
+  <PropertyGroup>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\..\README.md" Link="README.md">
-      <Pack>true</Pack>
-      <PackagePath></PackagePath>
-    </None>
+    <None Include="..\..\README.md" Link="README.md" Pack="true" PackagePath="/" />
+    <None Include="..\..\LICENSE" Link="LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
@@ -51,7 +45,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>

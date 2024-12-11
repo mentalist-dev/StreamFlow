@@ -8,11 +8,8 @@ using StreamFlow.Tests.AspNetCore.Database;
 using StreamFlow.Tests.AspNetCore;
 using StreamFlow;
 using StreamFlow.RabbitMq;
-using StreamFlow.RabbitMq.MediatR;
 using StreamFlow.RabbitMq.Prometheus;
 using StreamFlow.RabbitMq.Publisher;
-using StreamFlow.Tests.AspNetCore.Application.Errors;
-using StreamFlow.Tests.AspNetCore.Application.Ping;
 using StreamFlow.Tests.AspNetCore.Application.TimeSheetEdited;
 using StreamFlow.Tests.Contracts;
 using StreamFlow.Tests.AspNetCore.Application.Long;
@@ -108,14 +105,12 @@ try
     app.UseRouting();
     app.UseAuthorization();
     app.UseHttpMetrics();
-    app.UseEndpoints(endpoints =>
-    {
-        endpoints.MapControllerRoute(
-            name: "default",
-            pattern: "{controller=Home}/{action=Index}/{id?}");
 
-        endpoints.MapMetrics();
-    });
+    app.MapControllerRoute(
+        name: "default",
+        pattern: "{controller=Home}/{action=Index}/{id?}");
+
+    app.MapMetrics();
 
     await app.RunAsync();
 }

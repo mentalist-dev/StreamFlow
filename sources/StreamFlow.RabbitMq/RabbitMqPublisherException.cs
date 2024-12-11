@@ -1,20 +1,8 @@
-using System.Runtime.Serialization;
-
 namespace StreamFlow.RabbitMq;
 
-[Serializable]
-public class RabbitMqPublisherException : Exception
+public class RabbitMqPublisherException(PublicationExceptionReason reason) : Exception(reason.ToString())
 {
-    public PublicationExceptionReason Reason { get; }
-
-    public RabbitMqPublisherException(PublicationExceptionReason reason) : base(reason.ToString())
-    {
-        Reason = reason;
-    }
-
-    protected RabbitMqPublisherException(SerializationInfo info, StreamingContext context) : base(info, context)
-    {
-    }
+    public PublicationExceptionReason Reason { get; } = reason;
 }
 
 public enum PublicationExceptionReason
