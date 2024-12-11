@@ -1,6 +1,6 @@
 @ECHO OFF
 
-set version=9.1.0
+set version=10.0.0
 set output=./packages
 
 dotnet restore ./sources
